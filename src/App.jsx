@@ -454,7 +454,7 @@ export default function App() {
         <div className="flex border-b border-[#2A2A2A] overflow-x-auto no-scrollbar scroll-smooth">
           {[
             { id: 'checklist', label: 'Shot List', icon: <Camera className="w-4 h-4" />, count: `${capturedShots}/${totalShots}` },
-            { id: 'sandbox', label: 'Visual Sandbox', icon: <Sparkles className="w-4 h-4" />, count: null },
+            // { id: 'sandbox', label: 'Visual Sandbox', icon: <Sparkles className="w-4 h-4" />, count: null },
             { id: 'calendar', label: 'Calendar', icon: <Calendar className="w-4 h-4" />, count: null },
             { id: 'notes', label: 'Notepad', icon: <Edit3 className="w-4 h-4" />, count: currentData.notes ? 'Saved' : null }
           ].map(tab => (
