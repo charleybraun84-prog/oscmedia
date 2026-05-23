@@ -97,7 +97,7 @@ export default function App() {
   // Sandbox State
   const [sandboxSubject, setSandboxSubject] = useState('Worship Leader Close-up (Vocalist showing high emotion)');
   const [sandboxLighting, setSandboxLighting] = useState('Volumetric Stage Spotlights & Heavy Haze');
-  const [sandboxAngle, setSandboxAngle] = useState('85mm Prime Lens (f/1.4 shallow portrait bokeh)');
+  const [sandboxAngle, setSandboxAngle] = useState('70mm Portrait (f/2.8 shallow depth-of-field portrait)');
   const [sandboxNuances, setSandboxNuances] = useState('');
   const [sandboxImage, setSandboxImage] = useState('');
   const [sandboxPrompt, setSandboxPrompt] = useState('');
@@ -573,11 +573,11 @@ export default function App() {
                       onChange={(e) => setSandboxAngle(e.target.value)}
                       className="w-full bg-[#0F0F0F] border border-[#2A2A2A] text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none"
                     >
-                      <option value="85mm Prime Lens (f/1.4 shallow portrait bokeh)">85mm Prime (f/1.4 shallow bokeh portrait)</option>
-                      <option value="35mm Cine Lens (f/2.8 medium story angle)">35mm Cine (f/2.8 medium story angle)</option>
-                      <option value="24mm Wide-Angle Lens (f/4.0 deep focus room overview)">24mm Wide-Angle (f/4.0 room overview)</option>
-                      <option value="Low-Angle Hero Shot (Dynamic upward perspective)">Low-Angle Hero Shot (Upward angle)</option>
-                      <option value="Extreme Close-Up (Intense emotional focal point)">Extreme Close-Up (Tight focus)</option>
+                      <option value="70mm Portrait (f/2.8 shallow depth-of-field portrait)">70mm Portrait (f/2.8 shallow bokeh)</option>
+                      <option value="50mm Standard (f/2.8 natural narrative perspective)">50mm Standard (f/2.8 natural narrative)</option>
+                      <option value="35mm Storytelling (f/4.0 moderate wide-angle)">35mm Storytelling (f/4.0 moderate wide)</option>
+                      <option value="24mm Wide-Angle (f/5.6 deep focus room overview)">24mm Wide-Angle (f/5.6 room overview)</option>
+                      <option value="Low-Angle Dynamic (35mm focal length at f/2.8 aperture)">Low-Angle Dynamic (35mm at f/2.8)</option>
                     </select>
                   </div>
 

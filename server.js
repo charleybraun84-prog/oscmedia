@@ -27,7 +27,7 @@ function getFallbackData(subject, lighting, angle, customNuances, message = 'API
     imageUrl = 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&q=80&w=800'; // Stage speaker / podium
   }
 
-  const generatedPrompt = `[DEMO FALLBACK - ${message}] A professional cinematography capture of ${subject || 'a church event'}. Styled with ${lighting || 'cinematic stage lighting'} and framed as a ${angle || 'medium shot portrait'}. Shot on an ARRI Alexa Mini, 50mm anamorphic lens, f/1.8 aperture for shallow depth-of-field, creamy background bokeh, cinematic warm color grading, stage haze. ${customNuances ? 'Creative Nuances: ' + customNuances : ''}`;
+  const generatedPrompt = `[DEMO FALLBACK - ${message}] A professional cinematography capture of ${subject || 'a church event'}. Styled with ${lighting || 'cinematic stage lighting'} and framed as a ${angle || 'medium shot portrait'}. Shot on a Nikon Z6 II with a Nikkor Z 24-70mm f/2.8 S lens, focal length at 50mm, f/2.8 aperture for shallow depth-of-field, creamy background bokeh, natural Nikon color science rendering, stage haze. ${customNuances ? 'Creative Nuances: ' + customNuances : ''}`;
 
   return {
     success: true,
@@ -69,13 +69,14 @@ The input configuration consists of:
 - Angle & Framing: ${angle}
 - Custom Creative Nuances: ${custom_nuances || 'None'}
 
-Format the output prompt to describe a realistic, high-quality photograph or cinematic still. Include specific professional cinematography details such as:
-- Camera lens choice (e.g., 35mm, 50mm, 85mm lens)
-- F-stop advice (e.g., f/1.4, f/2.8) for depth-of-field
-- Depth-of-field descriptions (e.g., shallow depth of field, creamy bokeh background)
-- Lighting details (e.g., volumetric lighting, soft rim light, stage haze, cinematic color grading)
+Format the output prompt to describe a realistic, high-quality photograph or cinematic still. Include specific professional cinematography details matching these gear specifications:
+- Camera Body: Nikon Z6 II (refer to this camera for sensor characteristics and details)
+- Camera Lens: Nikkor Z 24-70mm f/2.8 S lens
+- Focal Length & Aperture advice: Suggest specific focal lengths strictly between 24mm and 70mm, and apertures starting at f/2.8 (e.g. 70mm at f/2.8 for portraits, 24mm at f/5.6 for wide room shots)
+- Depth-of-field descriptions (e.g., shallow depth of field, creamy background bokeh)
+- Lighting details (e.g., volumetric lighting, soft rim light, stage haze, warm color temperatures)
 - Composition rules (e.g., golden ratio, rule of thirds, clean framing)
-- Camera settings and quality indicators (e.g., shot on ARRI Alexa Mini, photorealistic, 8k resolution)
+- Quality and Color indicators (e.g., Nikon color science, sharp autofocus tracking, photorealistic, 8k resolution, raw photo format)
 
 Ensure the output is ONLY the final optimized prompt text, ready to be sent to Imagen. Do not include any intro, outro, or markdown formatting.`;
 
