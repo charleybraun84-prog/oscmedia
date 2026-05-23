@@ -120,31 +120,123 @@ const generateMockEvents = () => {
   ];
 };
 
+// Helper to parse iCal Date strings to JavaScript Date objects
+function parseICalDate(icalStr) {
+  if (!icalStr) return null;
+  
+  // Strip any non-alphanumeric characters
+  const cleanStr = icalStr.replace(/[^Z0-9T]/g, '');
+  
+  if (cleanStr.length >= 8) {
+    const year = parseInt(cleanStr.substring(0, 4), 10);
+    const month = parseInt(cleanStr.substring(4, 6), 10) - 1; // 0-indexed
+    const day = parseInt(cleanStr.substring(6, 8), 10);
+    
+    if (cleanStr.includes('T')) {
+      const tIdx = cleanStr.indexOf('T');
+      const hour = parseInt(cleanStr.substring(tIdx + 1, tIdx + 3), 10) || 0;
+      const minute = parseInt(cleanStr.substring(tIdx + 3, tIdx + 5), 10) || 0;
+      const second = parseInt(cleanStr.substring(tIdx + 5, tIdx + 7), 10) || 0;
+      
+      if (cleanStr.endsWith('Z')) {
+        // UTC Time
+        return new Date(Date.UTC(year, month, day, hour, minute, second));
+      } else {
+        // Local Time
+        return new Date(year, month, day, hour, minute, second);
+      }
+    } else {
+      // Date only
+      return new Date(year, month, day);
+    }
+  }
+  return null;
+}
+
+// Client-side RFC 5545 iCalendar (.ics) plain-text parser
+function parseICS(icsText) {
+  const lines = icsText.split(/\r?\n/);
+  const parsedEvents = [];
+  let currentEvent = null;
+  
+  // Unfold lines: lines starting with a space or tab are continuations of the previous line
+  const unfoldedLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith(' ') || line.startsWith('\t')) {
+      if (unfoldedLines.length > 0) {
+        unfoldedLines[unfoldedLines.length - 1] += line.substring(1);
+      }
+    } else {
+      unfoldedLines.push(line);
+    }
+  }
+
+  for (const line of unfoldedLines) {
+    if (!line.trim()) continue;
+    
+    const colonIdx = line.indexOf(':');
+    if (colonIdx === -1) continue;
+    
+    const keyPart = line.substring(0, colonIdx);
+    let value = line.substring(colonIdx + 1);
+    
+    // Clean string escape characters
+    value = value
+      .replace(/\\,/g, ',')
+      .replace(/\\;/g, ';')
+      .replace(/\\n/gi, '\n')
+      .replace(/\\\\/g, '\\');
+
+    const key = keyPart.split(';')[0].toUpperCase();
+
+    if (key === 'BEGIN' && value.toUpperCase() === 'VEVENT') {
+      currentEvent = {};
+    } else if (key === 'END' && value.toUpperCase() === 'VEVENT') {
+      if (currentEvent) {
+        if (currentEvent.dtstart) {
+          currentEvent.start = { dateTime: parseICalDate(currentEvent.dtstart) };
+        }
+        if (currentEvent.dtend) {
+          currentEvent.end = { dateTime: parseICalDate(currentEvent.dtend) };
+        }
+        currentEvent.id = currentEvent.uid || `event-${Date.now()}-${Math.random()}`;
+        parsedEvents.push(currentEvent);
+        currentEvent = null;
+      }
+    } else if (currentEvent) {
+      if (key === 'SUMMARY') {
+        currentEvent.summary = value;
+      } else if (key === 'DESCRIPTION') {
+        currentEvent.description = value;
+      } else if (key === 'LOCATION') {
+        currentEvent.location = value;
+      } else if (key === 'DTSTART') {
+        currentEvent.dtstart = value;
+      } else if (key === 'DTEND') {
+        currentEvent.dtend = value;
+      } else if (key === 'UID') {
+        currentEvent.uid = value;
+      }
+    }
+  }
+  return parsedEvents;
+}
+
 export default function MediaLensTracker() {
-  // Google API Settings
-  const [clientId, setClientId] = useState(() => localStorage.getItem('lens-tracker-client-id') || '');
-  const [calendarId, setCalendarId] = useState(() => localStorage.getItem('lens-tracker-calendar-id') || 'primary');
+  const defaultIcalUrl = 'https://calendar.google.com/calendar/ical/4620d5b51abb03fb96d1f3a01f9aa41e292db86f7d311eb0c6c2e4f1deab8ef8%40group.calendar.google.com/private-f8d78fd2bec10632066cf6ecaf25e32f/basic.ics';
+
+  // State Management
+  const [icalUrl, setIcalUrl] = useState(() => localStorage.getItem('lens-tracker-ical-url') || defaultIcalUrl);
   const [demoMode, setDemoMode] = useState(() => {
     const saved = localStorage.getItem('lens-tracker-demo-mode');
-    // If client ID hasn't been set, default to Demo Mode to provide immediate interactive feedback
-    return saved !== null ? JSON.parse(saved) : (localStorage.getItem('lens-tracker-client-id') ? false : true);
+    return saved !== null ? JSON.parse(saved) : false;
   });
 
-  // Authorization and Fetching States
-  const [accessToken, setAccessToken] = useState(() => localStorage.getItem('lens-tracker-access-token') || '');
-  const [tokenExpiry, setTokenExpiry] = useState(() => parseInt(localStorage.getItem('lens-tracker-token-expiry') || '0', 10));
-  
-  // Keep isAuthorized in state and set it asynchronously inside useEffect to avoid render impurity issues
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
-  const [gsiLoaded, setGsiLoaded] = useState(false);
-  
-  // UI Panels
   const [showSettings, setShowSettings] = useState(false);
   
-  // Data States
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState(null);
   
@@ -159,15 +251,6 @@ export default function MediaLensTracker() {
     localStorage.setItem('lens-tracker-checklists', JSON.stringify(eventChecklists));
   }, [eventChecklists]);
 
-  // Validate current token expiry asynchronously to satisfy render purity rules
-  useEffect(() => {
-    const isTokenValid = !!(accessToken && tokenExpiry > Date.now());
-    const timer = setTimeout(() => {
-      setIsAuthorized(isTokenValid);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [accessToken, tokenExpiry]);
-
   // Core Processing: Filter (prefix match), Clean Prefix, and Sort chronologically
   const processAndSetEvents = React.useCallback((rawEvents) => {
     // 1. Filtering: summary strictly starts with "OSC Media - "
@@ -179,8 +262,15 @@ export default function MediaLensTracker() {
     const transformed = filtered.map(event => {
       // Clean title: Strip prefix
       const cleanedTitle = event.summary.replace(/^OSC Media -\s*/, '');
-      const parsedStart = new Date(event.start.dateTime || event.start.date);
-      const parsedEnd = event.end ? new Date(event.end.dateTime || event.end.date) : null;
+      
+      let parsedStart = null;
+      if (event.start?.dateTime) {
+        parsedStart = event.start.dateTime instanceof Date ? event.start.dateTime : new Date(event.start.dateTime);
+      }
+      let parsedEnd = null;
+      if (event.end?.dateTime) {
+        parsedEnd = event.end.dateTime instanceof Date ? event.end.dateTime : new Date(event.end.dateTime);
+      }
       
       return {
         ...event,
@@ -191,7 +281,11 @@ export default function MediaLensTracker() {
     });
 
     // 3. Sorting: Chronologically by start date/time
-    transformed.sort((a, b) => a.parsedStart.getTime() - b.parsedStart.getTime());
+    transformed.sort((a, b) => {
+      const timeA = a.parsedStart ? a.parsedStart.getTime() : 0;
+      const timeB = b.parsedStart ? b.parsedStart.getTime() : 0;
+      return timeA - timeB;
+    });
 
     setEvents(transformed);
     
@@ -206,76 +300,36 @@ export default function MediaLensTracker() {
     }
   }, []);
 
-  // Google Calendar API Fetch Method
-  const fetchGoogleCalendarEvents = React.useCallback(async () => {
-    if (!accessToken) return;
+  // Fetch from Google Calendar iCal private URL feed using CORS proxy
+  const fetchCalendarFeed = React.useCallback(async () => {
+    if (!icalUrl.trim()) {
+      setErrorMsg('Please configure a valid Google Calendar Private iCal URL.');
+      return;
+    }
     setIsLoading(true);
     setErrorMsg(null);
 
     try {
-      const nowString = new Date().toISOString();
-      // Fetch up to 100 events from calendar
-      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?timeMin=${encodeURIComponent(nowString)}&orderBy=startTime&singleEvents=true&maxResults=100`;
+      // Prepend corsproxy.io to bypass browser CORS constraints
+      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(icalUrl.trim())}`;
+      const response = await fetch(proxyUrl);
       
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json'
-        }
-      });
-
       if (!response.ok) {
-        if (response.status === 401) {
-          // Token expired or invalid
-          setAccessToken('');
-          setTokenExpiry(0);
-          localStorage.removeItem('lens-tracker-access-token');
-          localStorage.removeItem('lens-tracker-token-expiry');
-          throw new Error('Google authorization token expired. Please reconnect.');
-        }
-        const errDetails = await response.json();
-        throw new Error(errDetails.error?.message || `API Error (Status ${response.status})`);
+        throw new Error(`Failed to fetch iCal feed (Status ${response.status}). If this error persists, verify the Secret iCal URL in Settings.`);
       }
 
-      const data = await response.json();
-      processAndSetEvents(data.items || []);
+      const text = await response.text();
+      const parsedData = parseICS(text);
+      processAndSetEvents(parsedData);
     } catch (err) {
-      console.error('Google Calendar Fetch Error:', err);
-      setErrorMsg(err.message);
+      console.error('iCal Feed Fetch Error:', err);
+      setErrorMsg(err.message || 'An error occurred while fetching or parsing the calendar feed.');
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken, calendarId, processAndSetEvents]);
+  }, [icalUrl, processAndSetEvents]);
 
-  // Load Google Identity Services SDK
-  useEffect(() => {
-    // Only load if not already present
-    if (window.google?.accounts?.oauth2) {
-      setTimeout(() => setGsiLoaded(true), 0);
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      setGsiLoaded(true);
-    };
-    script.onerror = () => {
-      setErrorMsg('Failed to load Google Identity Services SDK.');
-    };
-    document.body.appendChild(script);
-
-    return () => {
-      // Clean up if component unmounts
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
-    };
-  }, []);
-
-  // Fetch / load events based on mode and authorization state
+  // Fetch / load events based on mode and URL changes
   useEffect(() => {
     let active = true;
 
@@ -291,85 +345,22 @@ export default function MediaLensTracker() {
           setIsLoading(false);
         }, 500);
       }, 0);
-    } else if (isAuthorized) {
-      setTimeout(() => {
-        if (!active) return;
-        fetchGoogleCalendarEvents();
-      }, 0);
     } else {
       setTimeout(() => {
         if (!active) return;
-        setEvents([]);
-        setSelectedEventId(null);
+        fetchCalendarFeed();
       }, 0);
     }
 
     return () => {
       active = false;
     };
-  }, [demoMode, isAuthorized, fetchGoogleCalendarEvents, processAndSetEvents]);
+  }, [demoMode, fetchCalendarFeed, processAndSetEvents]);
 
-  // Connect Google Calendar (OAuth 2.0 Implicit Flow)
-  const handleConnectCalendar = () => {
-    if (!gsiLoaded || !window.google?.accounts?.oauth2) {
-      setErrorMsg('Google Identity Services SDK is not loaded yet. Please wait a moment.');
-      return;
-    }
-
-    if (!clientId.trim()) {
-      setErrorMsg('Please configure a valid Google Client ID in settings.');
-      setShowSettings(true);
-      return;
-    }
-
-    setErrorMsg(null);
-    try {
-      const tokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id: clientId.trim(),
-        scope: 'https://www.googleapis.com/auth/calendar.events.readonly',
-        callback: (tokenResponse) => {
-          if (tokenResponse && tokenResponse.access_token) {
-            const expiryTime = Date.now() + tokenResponse.expires_in * 1000;
-            setAccessToken(tokenResponse.access_token);
-            setTokenExpiry(expiryTime);
-            localStorage.setItem('lens-tracker-access-token', tokenResponse.access_token);
-            localStorage.setItem('lens-tracker-token-expiry', expiryTime.toString());
-            setDemoMode(false);
-            localStorage.setItem('lens-tracker-demo-mode', 'false');
-            
-            // Success - Close settings panel and trigger fetch
-            setShowSettings(false);
-          } else {
-            setErrorMsg('OAuth response did not contain an access token.');
-          }
-        },
-        error_callback: (err) => {
-          console.error('OAuth token client error:', err);
-          setErrorMsg(`Authorization Error: ${err.message || 'Unknown'}`);
-        }
-      });
-
-      tokenClient.requestAccessToken({ prompt: 'consent' });
-    } catch (err) {
-      console.error('Error starting Google auth flow:', err);
-      setErrorMsg(`Authorization process failed to start: ${err.message}`);
-    }
-  };
-
-  const handleDisconnect = () => {
-    setAccessToken('');
-    setTokenExpiry(0);
-    localStorage.removeItem('lens-tracker-access-token');
-    localStorage.removeItem('lens-tracker-token-expiry');
-    setEvents([]);
-    setSelectedEventId(null);
-  };
-
-  // Save Client Credentials and configs
+  // Save Settings callback
   const handleSaveSettings = (e) => {
     e.preventDefault();
-    localStorage.setItem('lens-tracker-client-id', clientId);
-    localStorage.setItem('lens-tracker-calendar-id', calendarId);
+    localStorage.setItem('lens-tracker-ical-url', icalUrl);
     setShowSettings(false);
   };
 
@@ -445,7 +436,7 @@ export default function MediaLensTracker() {
               <div className="flex items-center justify-between mb-5 border-b border-[#2A2A2A] pb-3">
                 <h3 className="text-lg font-bold flex items-center gap-2 text-white">
                   <Settings className="w-5 h-5 text-blue-500" />
-                  API Settings
+                  Feed Settings
                 </h3>
                 <button 
                   type="button"
@@ -459,31 +450,18 @@ export default function MediaLensTracker() {
               <form onSubmit={handleSaveSettings} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
-                    Google OAuth Client ID
+                    Google Calendar Private iCal URL
                   </label>
-                  <input 
-                    type="text" 
-                    value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
-                    placeholder="Enter client-id.apps.googleusercontent.com"
-                    className="w-full bg-black/40 border border-[#2A2A2A] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-zinc-700 text-white font-mono"
+                  <textarea 
+                    rows={5}
+                    value={icalUrl}
+                    onChange={(e) => setIcalUrl(e.target.value)}
+                    placeholder="Enter private .ics address"
+                    className="w-full bg-black/40 border border-[#2A2A2A] rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-zinc-700 text-white font-mono resize-none leading-relaxed"
                   />
                   <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
-                    Set up in Google Cloud Console with authorized JS origins representing this origin.
+                    Retrieve this from Google Calendar Settings $\rightarrow$ Integrate Calendar $\rightarrow$ Copy the <strong>Secret address in iCal format</strong>.
                   </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
-                    Calendar ID
-                  </label>
-                  <input 
-                    type="text" 
-                    value={calendarId}
-                    onChange={(e) => setCalendarId(e.target.value)}
-                    placeholder="primary"
-                    className="w-full bg-black/40 border border-[#2A2A2A] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-white font-mono"
-                  />
                 </div>
 
                 <div className="pt-2 border-t border-[#2A2A2A] flex items-center justify-between">
@@ -520,7 +498,7 @@ export default function MediaLensTracker() {
 
       <div className="max-w-5xl mx-auto space-y-6 pt-2 pb-6">
         
-        {/* Module Control / OAuth State Bar */}
+        {/* Module Control / iCal Feed State Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-4">
           <div className="flex items-center gap-3">
             <div className="bg-blue-600/10 p-2.5 rounded-xl border border-blue-500/20">
@@ -532,19 +510,15 @@ export default function MediaLensTracker() {
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border ${
                   demoMode 
                     ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
-                    : isAuthorized 
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                      : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                 }`}>
-                  {demoMode ? 'Demo Mode' : isAuthorized ? 'Live Connected' : 'Unconnected'}
+                  {demoMode ? 'Demo Mode' : 'Feed Connected'}
                 </span>
               </h2>
               <p className="text-[11px] text-[#A0A0A0]">
                 {demoMode 
                   ? 'Simulating Google Calendar endpoints' 
-                  : isAuthorized 
-                    ? `Authorized Calendar: ${calendarId}` 
-                    : 'Configure settings and connect to sync your photography events.'
+                  : 'Displaying events loaded directly from your private iCal address.'
                 }
               </p>
             </div>
@@ -555,21 +529,21 @@ export default function MediaLensTracker() {
               type="button"
               onClick={() => {
                 if (demoMode) {
-                  // Refresh mock events
                   setIsLoading(true);
                   setTimeout(() => {
                     processAndSetEvents(generateMockEvents());
                     setIsLoading(false);
                   }, 400);
-                } else if (isAuthorized) {
-                  fetchGoogleCalendarEvents();
+                } else {
+                  fetchCalendarFeed();
                 }
               }}
-              disabled={isLoading || (!isAuthorized && !demoMode)}
-              className="p-2.5 bg-black/40 hover:bg-black/80 border border-[#2A2A2A] rounded-xl text-zinc-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              title="Refresh events"
+              disabled={isLoading}
+              className="p-2.5 bg-black/40 hover:bg-black/80 border border-[#2A2A2A] rounded-xl text-zinc-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
+              title="Sync calendar events"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-blue-500' : ''}`} />
+              <span>Sync Feed</span>
             </button>
 
             <button
@@ -577,43 +551,8 @@ export default function MediaLensTracker() {
               onClick={() => setShowSettings(true)}
               className="p-2.5 bg-black/40 hover:bg-black/80 border border-[#2A2A2A] rounded-xl text-zinc-400 hover:text-white transition-colors flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider"
             >
-              <Settings className="w-4 h-4" /> Setup
+              <Settings className="w-4 h-4" /> Setup Feed
             </button>
-
-            {demoMode ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setDemoMode(false);
-                  localStorage.setItem('lens-tracker-demo-mode', 'false');
-                  if (clientId) {
-                    handleConnectCalendar();
-                  } else {
-                    setErrorMsg('Please save a Client ID in Settings first to connect.');
-                    setShowSettings(true);
-                  }
-                }}
-                className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold text-xs px-4 py-2.5 rounded-xl uppercase tracking-wider transition-all"
-              >
-                Go Live
-              </button>
-            ) : isAuthorized ? (
-              <button
-                type="button"
-                onClick={handleDisconnect}
-                className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-bold text-xs px-4 py-2.5 rounded-xl uppercase tracking-wider transition-all"
-              >
-                Disconnect
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleConnectCalendar}
-                className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold text-xs px-4 py-2.5 rounded-xl uppercase tracking-wider transition-all shadow-md shadow-blue-500/20"
-              >
-                Connect API
-              </button>
-            )}
           </div>
         </div>
 
@@ -712,7 +651,7 @@ export default function MediaLensTracker() {
                 <p className="text-xs text-[#A0A0A0] max-w-sm mx-auto leading-relaxed">
                   Only calendar events matching the prefix <code className="text-blue-400 font-mono">"OSC Media - "</code> will populate in this timeline.
                 </p>
-                {!isAuthorized && !demoMode && (
+                {!demoMode && (
                   <button
                     type="button"
                     onClick={() => {
