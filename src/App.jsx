@@ -11,8 +11,6 @@ import {
   ListTodo,
   Video,
   X,
-  Play,
-  Pause,
   RefreshCw,
   Zap,
   Calendar
@@ -66,8 +64,7 @@ export default function App() {
   const [newShotCategory, setNewShotCategory] = useState('Lobby & Pre-Service');
   const [newBaptismName, setNewBaptismName] = useState('');
   
-  const [timerActive, setTimerActive] = useState(false);
-  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Save state to local storage on change
   useEffect(() => {
@@ -75,26 +72,29 @@ export default function App() {
   }, [serviceData]);
 
   useEffect(() => {
-    let interval = null;
-    if (timerActive) {
-      interval = setInterval(() => {
-        setTimeElapsed((prev) => prev + 1);
-      }, 1000);
-    } else {
-      clearInterval(interval);
-    }
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
     return () => clearInterval(interval);
-  }, [timerActive]);
+  }, []);
+
+  const getElapsedSeconds = () => {
+    const start = new Date(currentTime);
+    start.setHours(activeService === '9am' ? 9 : 11, 0, 0, 0);
+    return Math.floor((currentTime - start) / 1000);
+  };
 
   const formatTime = (totalSeconds) => {
-    const hrs = Math.floor(totalSeconds / 3600);
-    const mins = Math.floor((totalSeconds % 3600) / 60);
-    const secs = totalSeconds % 60;
-    return [
-      hrs > 0 ? String(hrs).padStart(2, '0') : null,
-      String(mins).padStart(2, '0'),
-      String(secs).padStart(2, '0')
-    ].filter(Boolean).join(':');
+    const isNegative = totalSeconds < 0;
+    const absSeconds = Math.abs(totalSeconds);
+    const hrs = Math.floor(absSeconds / 3600);
+    const mins = Math.floor((absSeconds % 3600) / 60);
+    const secs = absSeconds % 60;
+    
+    let formattedMins = hrs > 0 ? String(mins).padStart(2, '0') : String(mins);
+    let result = `${hrs > 0 ? String(hrs) + ':' : ''}${formattedMins}:${String(secs).padStart(2, '0')}`;
+    
+    return isNegative ? `-${result}` : result;
   };
 
   const currentData = serviceData[activeService];
@@ -246,19 +246,9 @@ export default function App() {
             </div>
 
             {/* Run-Time Clock */}
-            <div className={`flex items-center gap-2 border px-3 py-1.5 rounded-xl text-sm font-mono font-bold transition-all duration-300 ${
-              timerActive ? 'glass-card border-rose-500/50 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.15)]' : 'bg-slate-900/80 border-slate-700/50 text-slate-300'
-            }`}>
-              <Clock className="w-3.5 h-3.5" />
-              <span className="w-[4.5rem]">{formatTime(timeElapsed)}</span>
-              <button 
-                onClick={() => setTimerActive(!timerActive)} 
-                className={`ml-1 flex items-center justify-center p-1 rounded-lg transition-all ${
-                  timerActive ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/40' : 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/40'
-                }`}
-              >
-                {timerActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              </button>
+            <div className="flex items-center gap-2 border px-3 py-1.5 rounded-xl text-sm font-mono font-bold transition-all duration-300 bg-slate-900/80 border-slate-700/50 text-slate-300">
+              <Clock className="w-3.5 h-3.5 text-cyan-500" />
+              <span className="w-[4.5rem] text-center">{formatTime(getElapsedSeconds())}</span>
             </div>
           </div>
 
