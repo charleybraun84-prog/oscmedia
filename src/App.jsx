@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Camera,
@@ -14,8 +14,10 @@ import {
   Play,
   Pause,
   RefreshCw,
-  Zap
+  Zap,
+  Calendar
 } from 'lucide-react';
+import MediaLensTracker from './MediaLensTracker.jsx';
 
 const INITIAL_SHOTS = [
   // LOBBY & PRE-SERVICE
@@ -43,7 +45,7 @@ const INITIAL_SHOTS = [
   { id: 'social-exit', category: 'Social Media Video (Vertical)', label: 'Post-service Exits (Joyful chats walking out of the building)', isCoLab: false, device: 'My Phone (Video)', captured: false }
 ];
 
-const springTransition = { type: "spring", stiffness: 300, damping: 25 };
+// const springTransition = { type: "spring", stiffness: 300, damping: 25 };
 
 export default function App() {
   const [activeService, setActiveService] = useState('9am');
@@ -192,13 +194,22 @@ export default function App() {
   const categories = [...new Set(INITIAL_SHOTS.map(s => s.category))];
 
   return (
-    <div className="min-h-screen pb-20 overflow-x-hidden font-sans text-slate-100 selection:bg-cyan-500/30">
+    <div className={`min-h-screen pb-20 overflow-x-hidden font-sans selection:bg-cyan-500/30 transition-colors duration-500 ${
+      activeTab === 'lens-tracker' ? 'bg-[#0F0F0F] text-[#f3f4f6]' : 'text-slate-100'
+    }`}>
       
       {/* Background Ambience */}
-      <div className="fixed inset-0 z-[-1] bg-slate-950 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-cyan-600/10 blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-600/10 blur-[120px]" />
-      </div>
+      {activeTab === 'lens-tracker' ? (
+        <div className="fixed inset-0 z-[-1] bg-[#0F0F0F] pointer-events-none transition-all duration-500">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600/5 blur-[120px]" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/5 blur-[120px]" />
+        </div>
+      ) : (
+        <div className="fixed inset-0 z-[-1] bg-slate-950 pointer-events-none transition-all duration-500">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-cyan-600/10 blur-[120px]" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-600/10 blur-[120px]" />
+        </div>
+      )}
 
       {/* Header */}
       <header className="sticky top-0 z-50 glass-panel border-b border-white/5 px-4 py-3">
@@ -324,6 +335,7 @@ export default function App() {
           {[
             { id: 'checklist', label: 'Shot List', icon: <Camera className="w-4 h-4" />, count: `${capturedShots}/${totalShots}` },
             { id: 'baptisms', label: 'Baptisms', icon: <Droplets className="w-4 h-4" />, count: `${completedBaptisms}/${totalBaptisms}` },
+            { id: 'lens-tracker', label: 'Lens Tracker', icon: <Calendar className="w-4 h-4" />, count: null },
             { id: 'notes', label: 'Notepad', icon: <Edit3 className="w-4 h-4" />, count: currentData.notes ? 'Saved' : null }
           ].map(tab => (
             <button
@@ -570,6 +582,18 @@ export default function App() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          )}
+
+          {/* LENS TRACKER */}
+          {activeTab === 'lens-tracker' && (
+            <motion.div
+              key="lens-tracker"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <MediaLensTracker />
             </motion.div>
           )}
 
