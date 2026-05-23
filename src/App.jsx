@@ -61,7 +61,17 @@ const INITIAL_SHOTS = [
 // const springTransition = { type: "spring", stiffness: 300, damping: 25 };
 
 export default function App() {
-  const [activeService, setActiveService] = useState('9am');
+  const [activeService, setActiveService] = useState(() => {
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    return mins >= 10 * 60 + 45 ? '11am' : '9am';
+  });
+
+  const [hasAutoSwitched, setHasAutoSwitched] = useState(() => {
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    return mins >= 10 * 60 + 45;
+  });
 
   const [serviceData, setServiceData] = useState(() => {
     // Attempt to load from localStorage first
@@ -223,6 +233,21 @@ export default function App() {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Automatically switch active service tab to 11AM once time hits 10:45 AM
+  useEffect(() => {
+    const now = new Date(currentTime);
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const threshold = 10 * 60 + 45; // 10:45 AM is 645 minutes since midnight
+
+    if (mins >= threshold && !hasAutoSwitched) {
+      setActiveService('11am');
+      setHasAutoSwitched(true);
+      addToast('Auto-switched to the 11:00 AM Service tab.', 'info');
+    } else if (mins < threshold && hasAutoSwitched) {
+      setHasAutoSwitched(false);
+    }
+  }, [currentTime, hasAutoSwitched]);
 
   const getElapsedSeconds = () => {
     const now = new Date(currentTime);
