@@ -144,7 +144,7 @@ export default function App() {
     setSandboxPrompt(mockPrompt);
     setSandboxIsFallback(true);
     
-    addToast('Operating in local standalone demo mode (secure backend not detected).', 'warning');
+    addToast('Operating in local standalone demo mode (secure backend not detected). Make sure to keep the "npm run dev" terminal running.', 'warning');
   };
 
   const generateReferenceImage = async () => {
