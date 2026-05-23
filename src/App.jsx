@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Circle,
   Clock,
-  Droplets,
   Edit3,
   ListTodo,
   Video,
@@ -24,16 +23,27 @@ const INITIAL_SHOTS = [
   { id: 'lobby-life', category: 'Lobby & Pre-Service', label: 'Lobby Life (Broad overview, motion, high energy, laughing)', isCoLab: false, device: 'Main Cam & Phone', captured: false },
   { id: 'lobby-coffee', category: 'Lobby & Pre-Service', label: 'Authentic Connections (Close-ups of coffee conversations & hugs)', isCoLab: false, device: 'My Phone (Video)', captured: false },
   { id: 'lobby-family', category: 'Lobby & Pre-Service', label: 'Diverse Families (Young, old, multi-ethnic walking together)', isCoLab: true, device: 'Main Cam (Photo)', captured: false },
-  { id: 'lobby-kids', category: 'Lobby & Pre-Service', label: 'Kids & Youth (Running, playing, high-fiving volunteers)', isCoLab: false, device: 'My Phone (Video)', captured: false },
+  { id: 'lobby-kids', category: 'Lobby & Pre-Service', label: 'Kids Check-in & Youth (Kids laughing, volunteers printing name tags)', isCoLab: false, device: 'My Phone (Video)', captured: false },
+  { id: 'lobby-desk', category: 'Lobby & Pre-Service', label: 'Welcome Desk (Volunteer giving information packet to new guest)', isCoLab: false, device: 'Main Cam (Photo)', captured: false },
 
   // WORSHIP
   { id: 'worship-team', category: 'Worship & Atmosphere', label: 'Worship Team Close-ups (Vocalists, musicians showing emotion)', isCoLab: true, device: 'Main Cam (Photo)', captured: false },
   { id: 'worship-crowd', category: 'Worship & Atmosphere', label: 'Congregation Response (Hands lifted high, wide/medium angle)', isCoLab: true, device: 'Main Cam (Photo)', captured: false },
   { id: 'worship-lights', category: 'Worship & Atmosphere', label: 'Atmosphere (Clean frame of stage lighting & haze)', isCoLab: false, device: 'Main Cam (Photo)', captured: false },
+  { id: 'worship-silhouette', category: 'Worship & Atmosphere', label: 'Worship Silhouette (Backlit artistic shot of crowd with raised hands)', isCoLab: false, device: 'Main Cam (Photo)', captured: false },
+  { id: 'worship-detail', category: 'Worship & Atmosphere', label: 'Instrumentalist Close-up (Focus on drum sticks, guitar strings, or keys)', isCoLab: false, device: 'My Phone (Video)', captured: false },
 
   // STAGE / TEACHING
   { id: 'stage-pastors', category: 'Teaching & Stage', label: 'Pastors on stage (Aim for smiles and high-energy expressions)', isCoLab: false, device: 'Main Cam (Photo)', captured: false },
   { id: 'stage-impact', category: 'Teaching & Stage', label: 'Wide room impact shot (Framed from back, full focused room)', isCoLab: false, device: 'Main Cam (Photo)', captured: false },
+  { id: 'stage-notes', category: 'Teaching & Stage', label: 'Active Note-Taking (Close-up of hands writing on notepad or using church app)', isCoLab: false, device: 'Main Cam (Photo)', captured: false },
+  { id: 'stage-speaker', category: 'Teaching & Stage', label: 'Speaker Gestures (Close-up of dynamic hand gestures and expressions)', isCoLab: false, device: 'Main Cam (Photo)', captured: false },
+
+  // RESPONSE & BAPTISM
+  { id: 'response-prayer', category: 'Response & Post-Service', label: 'Altar Call Response (Wide or medium shot of front response time)', isCoLab: false, device: 'Main Cam (Photo)', captured: false },
+  { id: 'response-candid', category: 'Response & Post-Service', label: 'Ministry Prayer (Quiet, respectful shot of team praying with individual)', isCoLab: true, device: 'Main Cam (Photo)', captured: false },
+  { id: 'response-baptism-rise', category: 'Response & Post-Service', label: 'Baptism Immersion Moment (The splash, the rise, pure joy on face)', isCoLab: true, device: 'Main Cam (Photo)', captured: false },
+  { id: 'response-baptism-candid', category: 'Response & Post-Service', label: 'Baptism Celebration (Family clapping, hugging post-immersion)', isCoLab: false, device: 'My Phone (Video)', captured: false },
 
   // SOCIAL MEDIA (VERTICAL / SHORT)
   { id: 'social-vibe', category: 'Social Media Video (Vertical)', label: 'Vibe Check (Snappy panning shots of crowd, smiles, high-fives)', isCoLab: false, device: 'My Phone (Video)', captured: false },
@@ -51,7 +61,23 @@ export default function App() {
   const [serviceData, setServiceData] = useState(() => {
     // Attempt to load from localStorage first
     const saved = localStorage.getItem('church-media-state');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const migrateShots = (loadedShots) => {
+        const loadedMap = new Map(loadedShots.map(s => [s.id, s]));
+        return INITIAL_SHOTS.map(initShot => {
+          const loaded = loadedMap.get(initShot.id);
+          return loaded ? { ...initShot, captured: loaded.captured } : initShot;
+        });
+      };
+      
+      if (parsed['9am'] && parsed['11am']) {
+        parsed['9am'].shots = migrateShots(parsed['9am'].shots);
+        parsed['11am'].shots = migrateShots(parsed['11am'].shots);
+        return parsed;
+      }
+      return parsed;
+    }
     
     return {
       '9am': { shots: JSON.parse(JSON.stringify(INITIAL_SHOTS)), baptisms: [], notes: '' },
@@ -62,7 +88,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('checklist');
   const [newShotText, setNewShotText] = useState('');
   const [newShotCategory, setNewShotCategory] = useState('Lobby & Pre-Service');
-  const [newBaptismName, setNewBaptismName] = useState('');
+
   
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -134,42 +160,7 @@ export default function App() {
     setNewShotText('');
   };
 
-  const toggleBaptismMedia = (id, field) => {
-    if (window.navigator && window.navigator.vibrate) {
-      window.navigator.vibrate([30, 50, 30]);
-    }
-    setServiceData(prev => {
-      const updatedBaps = prev[activeService].baptisms.map(b => 
-        b.id === id ? { ...b, [field]: !b[field] } : b
-      );
-      return { ...prev, [activeService]: { ...prev[activeService], baptisms: updatedBaps } };
-    });
-  };
 
-  const addBaptism = (e) => {
-    e.preventDefault();
-    const name = newBaptismName.trim() || `Candidate ${currentData.baptisms.length + 1}`;
-    const newBap = { id: Date.now(), name, photo: false, video: false };
-
-    setServiceData(prev => ({
-      ...prev,
-      [activeService]: {
-        ...prev[activeService],
-        baptisms: [...prev[activeService].baptisms, newBap]
-      }
-    }));
-    setNewBaptismName('');
-  };
-
-  const removeBaptism = (id) => {
-    setServiceData(prev => ({
-      ...prev,
-      [activeService]: {
-        ...prev[activeService],
-        baptisms: prev[activeService].baptisms.filter(b => b.id !== id)
-      }
-    }));
-  };
 
   const handleNotesChange = (text) => {
     setServiceData(prev => ({ ...prev, [activeService]: { ...prev[activeService], notes: text } }));
@@ -188,8 +179,7 @@ export default function App() {
   const capturedShots = currentData.shots.filter(s => s.captured).length;
   const completionPercent = totalShots > 0 ? Math.round((capturedShots / totalShots) * 100) : 0;
 
-  const totalBaptisms = currentData.baptisms.length;
-  const completedBaptisms = currentData.baptisms.filter(b => b.photo && b.video).length;
+
 
   const categories = [...new Set(INITIAL_SHOTS.map(s => s.category))];
 
@@ -249,7 +239,7 @@ export default function App() {
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
 
         {/* Dashboard Widgets */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-5 rounded-3xl relative overflow-hidden group">
             <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-600/10 rounded-full blur-xl group-hover:bg-blue-600/20 transition-all" />
@@ -273,24 +263,7 @@ export default function App() {
             </div>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-5 rounded-3xl relative overflow-hidden group">
-            <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all" />
-            <div className="space-y-2 relative z-10">
-              <div className="flex items-center gap-2 text-emerald-400 mb-4">
-                <Droplets className="w-4 h-4" />
-                <span className="text-xs font-bold tracking-widest uppercase">Baptisms Tracked</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-white font-outfit">{completedBaptisms} / {totalBaptisms}</span>
-                <span className="text-xs text-emerald-400 font-semibold px-2 py-0.5 bg-emerald-500/10 rounded-md border border-emerald-500/20">Ready</span>
-              </div>
-              <p className="text-[11px] text-[#A0A0A0] mt-3 font-medium leading-relaxed">
-                Aim for high-shutter stills + vertical clips. Don't run long videos.
-              </p>
-            </div>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-gradient-to-br from-blue-950/40 to-[#1A1A1A] border border-blue-500/15 p-5 rounded-3xl shadow-xl flex flex-col justify-between relative overflow-hidden">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-gradient-to-br from-blue-950/40 to-[#1A1A1A] border border-blue-500/15 p-5 rounded-3xl shadow-xl flex flex-col justify-between relative overflow-hidden">
             <div className="space-y-2 relative z-10">
               <div className="flex items-center gap-2 text-blue-400 mb-2">
                 <Zap className="w-4 h-4 fill-blue-400" />
@@ -315,8 +288,7 @@ export default function App() {
         <div className="flex border-b border-[#2A2A2A] overflow-x-auto no-scrollbar scroll-smooth">
           {[
             { id: 'checklist', label: 'Shot List', icon: <Camera className="w-4 h-4" />, count: `${capturedShots}/${totalShots}` },
-            { id: 'baptisms', label: 'Baptisms Roster', icon: <Droplets className="w-4 h-4" />, count: `${completedBaptisms}/${totalBaptisms}` },
-            { id: 'lens-tracker', label: 'Lens Tracker', icon: <Calendar className="w-4 h-4" />, count: null },
+            { id: 'calendar', label: 'Calendar', icon: <Calendar className="w-4 h-4" />, count: null },
             { id: 'notes', label: 'Notepad', icon: <Edit3 className="w-4 h-4" />, count: currentData.notes ? 'Saved' : null }
           ].map(tab => (
             <button
@@ -454,122 +426,10 @@ export default function App() {
             </motion.div>
           )}
 
-          {/* BAPTISMS */}
-          {activeTab === 'baptisms' && (
-            <motion.div key="baptisms" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-              <div className="glass-card rounded-3xl overflow-hidden border border-[#2A2A2A]">
-                <div className="bg-white/[0.01] px-6 py-5 border-b border-[#2A2A2A] backdrop-blur-md">
-                  <h3 className="font-bold text-sm text-white uppercase flex items-center gap-3">
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                    </span>
-                    Baptism Roster ({currentData.baptisms.length})
-                  </h3>
-                </div>
-
-                {currentData.baptisms.length === 0 ? (
-                  <div className="p-12 text-center text-[#A0A0A0]">
-                    <Droplets className="w-12 h-12 mx-auto text-zinc-700 mb-4" />
-                    <p className="text-sm font-medium text-white">No candidates listed for {activeService}.</p>
-                    <p className="text-xs mt-2">Add names below to track capture state.</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-[#2A2A2A]">
-                    <AnimatePresence>
-                      {currentData.baptisms.map(bap => {
-                        const finished = bap.photo && bap.video;
-                        return (
-                          <motion.div 
-                            layout
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            key={bap.id} 
-                            className={`p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-5 transition-all duration-500 ${
-                              finished ? 'bg-emerald-500/5' : ''
-                            }`}
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${
-                                finished ? 'bg-emerald-500 text-slate-900 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-[#2A2A2A] text-[#A0A0A0]'
-                              }`}>
-                                {finished ? <CheckCircle2 className="w-5 h-5" /> : <Droplets className="w-4 h-4" />}
-                              </div>
-                              <div>
-                                <p className="font-bold text-base text-white font-outfit">{bap.name}</p>
-                                <span className={`text-[10px] uppercase tracking-wider font-bold ${finished ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                                  {finished ? '⭐ Ready for Post-Process' : 'Pending Capture'}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                              <button
-                                onClick={() => toggleBaptismMedia(bap.id, 'photo')}
-                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase transition-all duration-300 active:scale-95 ${
-                                  bap.photo 
-                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
-                                    : 'bg-[#0F0F0F] border border-[#2A2A2A] text-[#A0A0A0] hover:text-white hover:border-blue-500/50'
-                                }`}
-                              >
-                                <Camera className="w-4 h-4" /> Photo
-                              </button>
-
-                              <button
-                                onClick={() => toggleBaptismMedia(bap.id, 'video')}
-                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase transition-all duration-300 active:scale-95 ${
-                                  bap.video 
-                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25' 
-                                    : 'bg-[#0F0F0F] border border-[#2A2A2A] text-[#A0A0A0] hover:text-white hover:border-indigo-500/50'
-                                }`}
-                              >
-                                <Video className="w-4 h-4" /> Video
-                              </button>
-
-                              <button 
-                                onClick={() => removeBaptism(bap.id)}
-                                className="p-2.5 ml-1 text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </AnimatePresence>
-                  </div>
-                )}
-              </div>
-
-              <form onSubmit={addBaptism} className="glass-card p-6 rounded-3xl shadow-lg border border-[#2A2A2A]">
-                <h4 className="font-bold text-sm text-white mb-4 flex items-center gap-2">
-                  <span className="bg-white/5 p-1.5 rounded-lg border border-[#2A2A2A]"><Droplets className="w-4 h-4 text-blue-400" /></span>
-                  Register Candidate
-                </h4>
-                <div className="flex gap-3">
-                  <input 
-                    type="text" 
-                    value={newBaptismName}
-                    onChange={(e) => setNewBaptismName(e.target.value)}
-                    placeholder="e.g. Dave Harrison..."
-                    className="bg-[#0F0F0F] border border-[#2A2A2A] text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 flex-1 transition-all placeholder:text-zinc-600"
-                  />
-                  <button 
-                    type="submit"
-                    className="bg-blue-600 hover:bg-blue-500 text-white font-black text-sm px-6 rounded-xl uppercase tracking-wider transition-all shadow-lg shadow-blue-500/25 active:scale-95"
-                  >
-                    Add
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          )}
-
-          {/* LENS TRACKER */}
-          {activeTab === 'lens-tracker' && (
+          {/* CALENDAR */}
+          {activeTab === 'calendar' && (
             <motion.div
-              key="lens-tracker"
+              key="calendar"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
