@@ -107,7 +107,7 @@ export default function App() {
   const getElapsedSeconds = () => {
     const start = new Date(currentTime);
     start.setHours(activeService === '9am' ? 9 : 11, 0, 0, 0);
-    return Math.floor((currentTime - start) / 1000);
+    return Math.max(0, Math.floor((currentTime - start) / 1000));
   };
 
   const formatTime = (totalSeconds) => {
@@ -116,11 +116,8 @@ export default function App() {
     const hrs = Math.floor(absSeconds / 3600);
     const mins = Math.floor((absSeconds % 3600) / 60);
     const secs = absSeconds % 60;
-    
-    let formattedMins = hrs > 0 ? String(mins).padStart(2, '0') : String(mins);
-    let result = `${hrs > 0 ? String(hrs) + ':' : ''}${formattedMins}:${String(secs).padStart(2, '0')}`;
-    
-    return isNegative ? `-${result}` : result;
+    const formatted = `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    return isNegative ? `-${formatted}` : formatted;
   };
 
   const currentData = serviceData[activeService];
