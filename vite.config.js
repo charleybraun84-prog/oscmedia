@@ -11,11 +11,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'Church Media Companion',
-        short_name: 'Media Companion',
-        description: 'Interactive PWA to guide media shots, baptisms, and notes during service.',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        name: 'OSC Media Capture',
+        short_name: 'OSC Media',
+        description: 'Interactive PWA for church media shooting lists, baptism rosters, and live agenda parsing.',
+        theme_color: '#0F0F0F',
+        background_color: '#0F0F0F',
         display: 'standalone',
         icons: [
           {
