@@ -171,6 +171,6 @@ Ensure the output is ONLY the final optimized prompt text, ready to be sent to I
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Backend server is running on port ${PORT}`);
 });
