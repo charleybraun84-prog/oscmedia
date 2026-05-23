@@ -325,8 +325,8 @@ export default function MediaLensTracker() {
     setErrorMsg(null);
 
     try {
-      // Prepend corsproxy.io to bypass browser CORS constraints
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(icalUrl.trim())}`;
+      // Use our secure serverless backend proxy instead of unreliable public corsproxy.io
+      const proxyUrl = `/api/calendar/proxy?url=${encodeURIComponent(icalUrl.trim())}`;
       const response = await fetch(proxyUrl);
       
       if (!response.ok) {
