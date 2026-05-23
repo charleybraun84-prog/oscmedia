@@ -225,9 +225,33 @@ export default function App() {
   }, []);
 
   const getElapsedSeconds = () => {
-    const start = new Date(currentTime);
+    const now = new Date(currentTime);
+    const currentDay = now.getDay(); // 0 is Sunday, 1 is Monday, etc.
+    
+    // Find the Sunday of the current week
+    const sunday = new Date(now);
+    sunday.setDate(now.getDate() - currentDay);
+    
+    // Start time: 9AM or 11AM on Sunday
+    const start = new Date(sunday);
     start.setHours(activeService === '9am' ? 9 : 11, 0, 0, 0);
-    return Math.max(0, Math.floor((currentTime - start) / 1000));
+    
+    // End time: 12:30PM on Sunday
+    const end = new Date(sunday);
+    end.setHours(12, 30, 0, 0);
+
+    // If current time is before the service starts on Sunday
+    if (now < start) {
+      return 0;
+    }
+    
+    // If current time is after the service ends on Sunday (or any later day in the week)
+    if (now > end) {
+      return Math.floor((end - start) / 1000);
+    }
+    
+    // Return elapsed seconds during the service window
+    return Math.floor((now - start) / 1000);
   };
 
   const formatTime = (totalSeconds) => {
