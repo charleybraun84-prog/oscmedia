@@ -286,20 +286,29 @@ export default function MediaLensTracker() {
       };
     });
 
-    // 3. Sorting: Chronologically by start date/time
-    transformed.sort((a, b) => {
+    // 3. Filter out past events
+    const now = new Date();
+    const futureEvents = transformed.filter(event => {
+      // Use end time if available, otherwise start time
+      const eventTime = event.parsedEnd || event.parsedStart;
+      // Keep event if its time is in the future, or if no parsed time available
+      return eventTime ? eventTime >= now : true;
+    });
+
+    // 4. Sorting: Chronologically by start date/time
+    futureEvents.sort((a, b) => {
       const timeA = a.parsedStart ? a.parsedStart.getTime() : 0;
       const timeB = b.parsedStart ? b.parsedStart.getTime() : 0;
       return timeA - timeB;
     });
 
-    setEvents(transformed);
+    setEvents(futureEvents);
     
     // Select first event if none selected or if previous selection is not in list
-    if (transformed.length > 0) {
+    if (futureEvents.length > 0) {
       setSelectedEventId(prevSelectedId => {
-        const matchExists = transformed.some(e => e.id === prevSelectedId);
-        return matchExists ? prevSelectedId : transformed[0].id;
+        const matchExists = futureEvents.some(e => e.id === prevSelectedId);
+        return matchExists ? prevSelectedId : futureEvents[0].id;
       });
     } else {
       setSelectedEventId(null);
