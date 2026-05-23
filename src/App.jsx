@@ -114,6 +114,29 @@ export default function App() {
     }, 4500);
   };
 
+  const runClientSideDemoFallback = (subject, lighting, angle, customNuances, errorContext) => {
+    const sub = (subject || '').toLowerCase();
+    let imageUrl = 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800'; // Default camera lens
+    
+    if (sub.includes('worship') || sub.includes('sing') || sub.includes('music') || sub.includes('guitar')) {
+      imageUrl = 'https://images.unsplash.com/photo-1515162305285-0293e4767cc2?auto=format&fit=crop&q=80&w=800'; // Worship stage light
+    } else if (sub.includes('baptis') || sub.includes('water') || sub.includes('immersion')) {
+      imageUrl = 'https://images.unsplash.com/photo-1544427920-c49ccfb85579?auto=format&fit=crop&q=80&w=800'; // Stream/Water/Light
+    } else if (sub.includes('lobby') || sub.includes('greet') || sub.includes('welcom') || sub.includes('coffee') || sub.includes('people') || sub.includes('family')) {
+      imageUrl = 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&q=80&w=800'; // Smiling people gathering
+    } else if (sub.includes('preach') || sub.includes('pastor') || sub.includes('teach') || sub.includes('speaker') || sub.includes('note') || sub.includes('app')) {
+      imageUrl = 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&q=80&w=800'; // Stage speaker / podium
+    }
+
+    const mockPrompt = `[STANDALONE DEMO MODE - ${errorContext}] A professional cinematography capture of ${subject}. Styled with ${lighting} and framed as a ${angle}. Shot on a Nikon Z6 II with a Nikkor Z 24-70mm f/2.8 S lens, focal length at 50mm, f/2.8 aperture for shallow depth-of-field, creamy background bokeh, natural Nikon color science rendering, stage haze. ${customNuances ? 'Creative Nuances: ' + customNuances : ''}`;
+
+    setSandboxImage(imageUrl);
+    setSandboxPrompt(mockPrompt);
+    setSandboxIsFallback(true);
+    
+    addToast('Operating in local standalone demo mode (secure backend not detected).', 'warning');
+  };
+
   const generateReferenceImage = async () => {
     if (sandboxLoading) return;
     setSandboxLoading(true);
@@ -151,6 +174,12 @@ export default function App() {
         })
       });
 
+      if (response.status === 404) {
+        clearInterval(msgInterval);
+        runClientSideDemoFallback(sandboxSubject, sandboxLighting, sandboxAngle, sandboxNuances, 'Backend 404');
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(`HTTP error: ${response.status}`);
       }
@@ -174,7 +203,7 @@ export default function App() {
     } catch (error) {
       clearInterval(msgInterval);
       console.error('Sandbox generation error:', error);
-      addToast(`Connection error: ${error.message || 'Server timeout'}`, 'error');
+      runClientSideDemoFallback(sandboxSubject, sandboxLighting, sandboxAngle, sandboxNuances, 'Backend Offline');
     } finally {
       setSandboxLoading(false);
     }
