@@ -224,10 +224,16 @@ function parseICS(icsText) {
 }
 
 export default function MediaLensTracker() {
-  const defaultIcalUrl = 'https://calendar.google.com/calendar/ical/4620d5b51abb03fb96d1f3a01f9aa41e292db86f7d311eb0c6c2e4f1deab8ef8%40group.calendar.google.com/private-f8d78fd2bec10632066cf6ecaf25e32f/basic.ics';
+  const defaultIcalUrl = 'https://calendar.google.com/calendar/ical/charley.braun84%40gmail.com/private-74fc89a8c96ffc89bea52a2b70dbc494/basic.ics';
 
-  // State Management
-  const [icalUrl, setIcalUrl] = useState(() => localStorage.getItem('lens-tracker-ical-url') || defaultIcalUrl);
+  const [icalUrl, setIcalUrl] = useState(() => {
+    const saved = localStorage.getItem('lens-tracker-ical-url');
+    if (saved === 'https://calendar.google.com/calendar/ical/4620d5b51abb03fb96d1f3a01f9aa41e292db86f7d311eb0c6c2e4f1deab8ef8%40group.calendar.google.com/private-f8d78fd2bec10632066cf6ecaf25e32f/basic.ics') {
+      localStorage.setItem('lens-tracker-ical-url', defaultIcalUrl);
+      return defaultIcalUrl;
+    }
+    return saved || defaultIcalUrl;
+  });
   const [demoMode, setDemoMode] = useState(() => {
     const saved = localStorage.getItem('lens-tracker-demo-mode');
     return saved !== null ? JSON.parse(saved) : false;
