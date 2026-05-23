@@ -12,7 +12,12 @@ import {
   X,
   RefreshCw,
   Zap,
-  Calendar
+  Calendar,
+  Sparkles,
+  Sliders,
+  AlertCircle,
+  Copy,
+  Image
 } from 'lucide-react';
 import MediaLensTracker from './MediaLensTracker.jsx';
 
@@ -88,6 +93,92 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('checklist');
   const [newShotText, setNewShotText] = useState('');
   const [newShotCategory, setNewShotCategory] = useState('Lobby & Pre-Service');
+
+  // Sandbox State
+  const [sandboxSubject, setSandboxSubject] = useState('Worship Leader Close-up (Vocalist showing high emotion)');
+  const [sandboxLighting, setSandboxLighting] = useState('Volumetric Stage Spotlights & Heavy Haze');
+  const [sandboxAngle, setSandboxAngle] = useState('85mm Prime Lens (f/1.4 shallow portrait bokeh)');
+  const [sandboxNuances, setSandboxNuances] = useState('');
+  const [sandboxImage, setSandboxImage] = useState('');
+  const [sandboxPrompt, setSandboxPrompt] = useState('');
+  const [sandboxLoading, setSandboxLoading] = useState(false);
+  const [sandboxLoadingMsg, setSandboxLoadingMsg] = useState('Interfacing with server...');
+  const [sandboxIsFallback, setSandboxIsFallback] = useState(false);
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4500);
+  };
+
+  const generateReferenceImage = async () => {
+    if (sandboxLoading) return;
+    setSandboxLoading(true);
+    setSandboxIsFallback(false);
+
+    const messages = [
+      'Connecting to secure backend server...',
+      'Analyzing composition specifications...',
+      'Optimizing scene cinematography blueprint...',
+      'Defining camera lens, f-stop and bokeh recommendations...',
+      'Structuring AI text instructions...',
+      'Interfacing with Google Imagen 4.0 diffusion model...',
+      'Generating photorealistic 1:1 preview mockup...',
+      'Polishing render output and contrast layers...'
+    ];
+
+    let messageIndex = 0;
+    setSandboxLoadingMsg(messages[0]);
+    const msgInterval = setInterval(() => {
+      messageIndex = (messageIndex + 1) % messages.length;
+      setSandboxLoadingMsg(messages[messageIndex]);
+    }, 1800);
+
+    try {
+      const response = await fetch('/api/sandbox/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          subject: sandboxSubject,
+          lighting: sandboxLighting,
+          angle: sandboxAngle,
+          custom_nuances: sandboxNuances
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      clearInterval(msgInterval);
+
+      if (data.success) {
+        setSandboxImage(data.image_data);
+        setSandboxPrompt(data.optimized_prompt);
+        setSandboxIsFallback(!!data.isFallback);
+        
+        if (data.isFallback) {
+          addToast('Visual generated using high-quality demonstration fallback image.', 'warning');
+        } else {
+          addToast('Visual composition reference rendered successfully!', 'success');
+        }
+      } else {
+        throw new Error(data.error || 'Server error generating image');
+      }
+    } catch (error) {
+      clearInterval(msgInterval);
+      console.error('Sandbox generation error:', error);
+      addToast(`Connection error: ${error.message || 'Server timeout'}`, 'error');
+    } finally {
+      setSandboxLoading(false);
+    }
+  };
 
   
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -285,6 +376,7 @@ export default function App() {
         <div className="flex border-b border-[#2A2A2A] overflow-x-auto no-scrollbar scroll-smooth">
           {[
             { id: 'checklist', label: 'Shot List', icon: <Camera className="w-4 h-4" />, count: `${capturedShots}/${totalShots}` },
+            { id: 'sandbox', label: 'Visual Sandbox', icon: <Sparkles className="w-4 h-4" />, count: null },
             { id: 'calendar', label: 'Calendar', icon: <Calendar className="w-4 h-4" />, count: null },
             { id: 'notes', label: 'Notepad', icon: <Edit3 className="w-4 h-4" />, count: currentData.notes ? 'Saved' : null }
           ].map(tab => (
@@ -423,6 +515,196 @@ export default function App() {
             </motion.div>
           )}
 
+          {/* SANDBOX */}
+          {activeTab === 'sandbox' && (
+            <motion.div 
+              key="sandbox"
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8"
+            >
+              {/* Controls Column */}
+              <div className="lg:col-span-5 space-y-6">
+                <div className="glass-card p-6 rounded-3xl border border-[#2A2A2A] space-y-5">
+                  <div>
+                    <h3 className="font-black text-lg text-white font-outfit flex items-center gap-2">
+                      <Sliders className="w-5 h-5 text-blue-500" /> Composition Parameters
+                    </h3>
+                    <p className="text-xs text-[#A0A0A0] mt-1">Configure the physical environment, lens settings, and subject matter for the AI rendering.</p>
+                  </div>
+
+                  {/* Subject Dropdown */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Target Subject</label>
+                    <select
+                      value={sandboxSubject}
+                      onChange={(e) => setSandboxSubject(e.target.value)}
+                      className="w-full bg-[#0F0F0F] border border-[#2A2A2A] text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none"
+                    >
+                      <option value="Worship Leader Close-up (Vocalist showing high emotion)">Worship Leader Close-up (Vocalist)</option>
+                      <option value="Congregation Response (Raised hands, wide-angle stage visual)">Congregation Response (Hands Raised)</option>
+                      <option value="Baptism Immersion (Water splash, raw joyful expressions)">Baptism Immersion (Water Splash)</option>
+                      <option value="Lobby Volunteer (Friendly greetings, coffee station vibe)">Lobby Volunteer (Warm Welcome)</option>
+                      <option value="Teaching Pastor (Dynamic stage gestures, preaching podium)">Teaching Pastor (Preaching stage)</option>
+                      <option value="Youth Group Huddle (High-energy laughing and chatting)">Youth Group Huddle (High-energy)</option>
+                    </select>
+                  </div>
+
+                  {/* Lighting Dropdown */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Lighting Setup</label>
+                    <select
+                      value={sandboxLighting}
+                      onChange={(e) => setSandboxLighting(e.target.value)}
+                      className="w-full bg-[#0F0F0F] border border-[#2A2A2A] text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none"
+                    >
+                      <option value="Volumetric Stage Spotlights & Heavy Haze">Volumetric Stage Spots & Heavy Haze</option>
+                      <option value="Dramatic High-Contrast Backlit Rim Light">Dramatic High-Contrast Backlit Rim Light</option>
+                      <option value="Warm Golden Hour Sunlight Streaming In">Warm Golden Hour Sunlight</option>
+                      <option value="Cool Ambient Wash with Neon Highlights">Cool Ambient Wash with Neon Highlights</option>
+                      <option value="Bright Natural Clean Morning Light">Bright Natural Clean Morning Light</option>
+                    </select>
+                  </div>
+
+                  {/* Lens Angle Dropdown */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Angle & Framing</label>
+                    <select
+                      value={sandboxAngle}
+                      onChange={(e) => setSandboxAngle(e.target.value)}
+                      className="w-full bg-[#0F0F0F] border border-[#2A2A2A] text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none"
+                    >
+                      <option value="85mm Prime Lens (f/1.4 shallow portrait bokeh)">85mm Prime (f/1.4 shallow bokeh portrait)</option>
+                      <option value="35mm Cine Lens (f/2.8 medium story angle)">35mm Cine (f/2.8 medium story angle)</option>
+                      <option value="24mm Wide-Angle Lens (f/4.0 deep focus room overview)">24mm Wide-Angle (f/4.0 room overview)</option>
+                      <option value="Low-Angle Hero Shot (Dynamic upward perspective)">Low-Angle Hero Shot (Upward angle)</option>
+                      <option value="Extreme Close-Up (Intense emotional focal point)">Extreme Close-Up (Tight focus)</option>
+                    </select>
+                  </div>
+
+                  {/* Creative Notes */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Custom Nuances (Optional)</label>
+                    <textarea
+                      value={sandboxNuances}
+                      onChange={(e) => setSandboxNuances(e.target.value)}
+                      placeholder="e.g. Include blurred volunteer badge in foreground, lens flare, film grain, or specific color grading ideas..."
+                      rows={3}
+                      className="w-full bg-[#0F0F0F] border border-[#2A2A2A] text-white text-sm p-4 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-zinc-600 resize-none"
+                    />
+                  </div>
+
+                  {/* Action Button */}
+                  <button
+                    onClick={generateReferenceImage}
+                    disabled={sandboxLoading}
+                    className={`w-full flex items-center justify-center gap-2 font-bold text-sm py-4 rounded-xl uppercase tracking-wider transition-all duration-300 shadow-lg ${
+                      sandboxLoading
+                        ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/50'
+                        : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-blue-500/25 active:scale-[0.98]'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    {sandboxLoading ? 'Rendering preview...' : 'Generate Reference Image'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Viewport Column */}
+              <div className="lg:col-span-7 space-y-6">
+                <div className="glass-card rounded-3xl border border-[#2A2A2A] overflow-hidden flex flex-col relative">
+                  
+                  {/* Header info */}
+                  <div className="px-6 py-4 border-b border-[#2A2A2A] flex justify-between items-center bg-white/[0.01]">
+                    <h4 className="font-extrabold text-sm tracking-wider uppercase text-white font-outfit flex items-center gap-2">
+                      <Image className="w-4 h-4 text-blue-500" />
+                      Composition Preview Frame
+                    </h4>
+                    {sandboxIsFallback && (
+                      <span className="text-[10px] font-bold text-amber-400 bg-amber-950/40 border border-amber-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Demo Mode
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 1:1 Rendering Frame */}
+                  <div className="relative aspect-square w-full bg-black/60 flex items-center justify-center overflow-hidden">
+                    {sandboxImage ? (
+                      <motion.img
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                        src={sandboxImage}
+                        alt="AI Generated Composition Reference"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 max-w-sm">
+                        <div className="bg-[#1A1A1A] border border-[#2A2A2A] p-5 rounded-full text-zinc-500">
+                          <Camera className="w-10 h-10" />
+                        </div>
+                        <p className="text-sm font-semibold text-zinc-300 font-outfit">Ready to Compose</p>
+                        <p className="text-xs text-zinc-500">Select parameters on the left and generate a cinematic reference image to guide your live shot capture.</p>
+                      </div>
+                    )}
+
+                    {/* Glassmorphic Loading Overlay */}
+                    <AnimatePresence>
+                      {sandboxLoading && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="absolute inset-0 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center space-y-5"
+                        >
+                          {/* Premium Glowing Spinner */}
+                          <div className="relative w-16 h-16">
+                            <div className="absolute inset-0 rounded-full border-4 border-blue-500/20" />
+                            <div className="absolute inset-0 rounded-full border-4 border-t-blue-500 animate-spin" />
+                          </div>
+                          
+                          <div className="space-y-1.5">
+                            <p className="text-sm font-bold text-white tracking-wide">{sandboxLoadingMsg}</p>
+                            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest animate-pulse">Running Imagen Diffusion</p>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+                {/* Director's Prompt Card */}
+                {sandboxPrompt && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="glass-card p-6 rounded-3xl border border-[#2A2A2A] space-y-3"
+                  >
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-blue-500" />
+                        AI Agent Optimized Cinematic Prompt
+                      </h4>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(sandboxPrompt);
+                          addToast('Optimized prompt copied to clipboard!', 'success');
+                        }}
+                        className="text-[10px] font-bold text-[#A0A0A0] hover:text-white flex items-center gap-1 transition-colors uppercase tracking-wider"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy Prompt
+                      </button>
+                    </div>
+                    <div className="bg-[#0F0F0F] border border-[#2A2A2A] rounded-xl p-4 text-xs font-mono text-zinc-300 leading-relaxed max-h-40 overflow-y-auto">
+                      {sandboxPrompt}
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
           {/* CALENDAR */}
           {activeTab === 'calendar' && (
             <motion.div
@@ -473,6 +755,45 @@ export default function App() {
         </AnimatePresence>
 
       </main>
+
+      {/* Toast Notification Container */}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+        <AnimatePresence>
+          {toasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20, opacity: 0 }}
+              className={`p-4 rounded-2xl shadow-xl flex items-start gap-3 pointer-events-auto border backdrop-blur-md ${
+                toast.type === 'success'
+                  ? 'bg-emerald-950/80 border-emerald-500/20 text-emerald-300'
+                  : toast.type === 'warning'
+                  ? 'bg-amber-950/80 border-amber-500/20 text-amber-300'
+                  : toast.type === 'error'
+                  ? 'bg-rose-950/80 border-rose-500/20 text-rose-300'
+                  : 'bg-zinc-950/80 border-zinc-500/20 text-zinc-300'
+              }`}
+            >
+              <div className="mt-0.5">
+                {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+                {toast.type === 'warning' && <AlertCircle className="w-5 h-5 text-amber-400" />}
+                {toast.type === 'error' && <X className="w-5 h-5 text-rose-400" />}
+                {toast.type === 'info' && <Clock className="w-5 h-5 text-blue-400" />}
+              </div>
+              <div className="flex-1 text-xs font-semibold leading-relaxed">
+                {toast.message}
+              </div>
+              <button 
+                onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                className="text-[#A0A0A0] hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
 
     </div>
   );
