@@ -8,7 +8,6 @@ import {
   Clock,
   Edit3,
   ListTodo,
-  Video,
   X,
   RefreshCw,
   Zap,
@@ -23,7 +22,6 @@ import MediaLensTracker from './MediaLensTracker.jsx';
 
 const INITIAL_SHOTS = [
   // LOBBY & PRE-SERVICE
-  { id: 'lobby-ext', category: 'Lobby & Pre-Service', label: 'Building Exterior (People walking in, showing building footprint)', isCoLab: true, device: 'Main Cam (Photo)', captured: false },
   { id: 'lobby-greet', category: 'Lobby & Pre-Service', label: 'People being greeted & welcomed by smiling volunteers', isCoLab: true, device: 'Main Cam (Photo)', captured: false },
   { id: 'lobby-life', category: 'Lobby & Pre-Service', label: 'Lobby Life (Broad overview, motion, high energy, laughing)', isCoLab: false, device: 'Main Cam & Phone', captured: false },
   { id: 'lobby-coffee', category: 'Lobby & Pre-Service', label: 'Authentic Connections (Close-ups of coffee conversations & hugs)', isCoLab: false, device: 'My Phone (Video)', captured: false },
@@ -64,13 +62,13 @@ export default function App() {
   const [activeService, setActiveService] = useState(() => {
     const now = new Date();
     const mins = now.getHours() * 60 + now.getMinutes();
-    return mins >= 10 * 60 + 45 ? '11am' : '9am';
+    return mins >= 10 * 60 + 40 ? '11am' : '9am';
   });
 
   const [hasAutoSwitched, setHasAutoSwitched] = useState(() => {
     const now = new Date();
     const mins = now.getHours() * 60 + now.getMinutes();
-    return mins >= 10 * 60 + 45;
+    return mins >= 10 * 60 + 40;
   });
 
   const [serviceData, setServiceData] = useState(() => {
@@ -85,7 +83,7 @@ export default function App() {
           return loaded ? { ...initShot, captured: loaded.captured } : initShot;
         });
       };
-      
+
       if (parsed['9am'] && parsed['11am']) {
         parsed['9am'].shots = migrateShots(parsed['9am'].shots);
         parsed['11am'].shots = migrateShots(parsed['11am'].shots);
@@ -93,7 +91,7 @@ export default function App() {
       }
       return parsed;
     }
-    
+
     return {
       '9am': { shots: JSON.parse(JSON.stringify(INITIAL_SHOTS)), baptisms: [], notes: '' },
       '11am': { shots: JSON.parse(JSON.stringify(INITIAL_SHOTS)), baptisms: [], notes: '' }
@@ -127,7 +125,7 @@ export default function App() {
   const runClientSideDemoFallback = (subject, lighting, angle, customNuances, errorContext) => {
     const sub = (subject || '').toLowerCase();
     let imageUrl = 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=800'; // Default camera lens
-    
+
     if (sub.includes('worship') || sub.includes('sing') || sub.includes('music') || sub.includes('guitar')) {
       imageUrl = 'https://images.unsplash.com/photo-1515162305285-0293e4767cc2?auto=format&fit=crop&q=80&w=800'; // Worship stage light
     } else if (sub.includes('baptis') || sub.includes('water') || sub.includes('immersion')) {
@@ -143,7 +141,7 @@ export default function App() {
     setSandboxImage(imageUrl);
     setSandboxPrompt(mockPrompt);
     setSandboxIsFallback(true);
-    
+
     addToast('Operating in local standalone demo mode (secure backend not detected). Make sure to keep the "npm run dev" terminal running.', 'warning');
   };
 
@@ -201,7 +199,7 @@ export default function App() {
         setSandboxImage(data.image_data);
         setSandboxPrompt(data.optimized_prompt);
         setSandboxIsFallback(!!data.isFallback);
-        
+
         if (data.isFallback) {
           addToast('Visual generated using high-quality demonstration fallback image.', 'warning');
         } else {
@@ -219,7 +217,7 @@ export default function App() {
     }
   };
 
-  
+
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Save state to local storage on change
@@ -234,13 +232,14 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Automatically switch active service tab to 11AM once time hits 10:45 AM
+  // Automatically switch active service tab to 11AM once time hits 10:40 AM (countdown start)
   useEffect(() => {
     const now = new Date(currentTime);
     const mins = now.getHours() * 60 + now.getMinutes();
-    const threshold = 10 * 60 + 45; // 10:45 AM is 645 minutes since midnight
+    const threshold = 10 * 60 + 40; // 10:40 AM is 640 minutes since midnight
 
     if (mins >= threshold && !hasAutoSwitched) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveService('11am');
       setHasAutoSwitched(true);
       addToast('Auto-switched to the 11:00 AM Service tab.', 'info');
@@ -252,31 +251,64 @@ export default function App() {
   const getElapsedSeconds = () => {
     const now = new Date(currentTime);
     const currentDay = now.getDay(); // 0 is Sunday, 1 is Monday, etc.
-    
+
     // Find the Sunday of the current week
     const sunday = new Date(now);
     sunday.setDate(now.getDate() - currentDay);
-    
+
     // Start time: 9AM or 11AM on Sunday
     const start = new Date(sunday);
     start.setHours(activeService === '9am' ? 9 : 11, 0, 0, 0);
-    
+
     // End time: 12:30PM on Sunday
     const end = new Date(sunday);
     end.setHours(12, 30, 0, 0);
 
-    // If current time is before the service starts on Sunday
-    if (now < start) {
+    // Countdown starts 20 minutes before start time
+    const countdownStart = new Date(start.getTime() - 20 * 60 * 1000);
+
+    // If current time is before countdown starts on Sunday
+    if (now < countdownStart) {
       return 0;
     }
-    
+
     // If current time is after the service ends on Sunday (or any later day in the week)
     if (now > end) {
       return Math.floor((end - start) / 1000);
     }
-    
-    // Return elapsed seconds during the service window
+
+    // Return elapsed seconds during the service window (can be negative if in pre-service countdown)
     return Math.floor((now - start) / 1000);
+  };
+
+  const getClockState = () => {
+    const now = new Date(currentTime);
+    const currentDay = now.getDay();
+    const sunday = new Date(now);
+    sunday.setDate(now.getDate() - currentDay);
+
+    const start = new Date(sunday);
+    start.setHours(activeService === '9am' ? 9 : 11, 0, 0, 0);
+
+    const end = new Date(sunday);
+    end.setHours(12, 30, 0, 0);
+
+    const countdownStart = new Date(start.getTime() - 20 * 60 * 1000);
+
+    if (currentDay !== 0) {
+      return 'completed';
+    }
+
+    if (now < countdownStart) {
+      return 'waiting';
+    }
+    if (now >= countdownStart && now < start) {
+      return 'countdown';
+    }
+    if (now >= start && now <= end) {
+      return 'live';
+    }
+    return 'completed';
   };
 
   const formatTime = (totalSeconds) => {
@@ -285,7 +317,11 @@ export default function App() {
     const hrs = Math.floor(absSeconds / 3600);
     const mins = Math.floor((absSeconds % 3600) / 60);
     const secs = absSeconds % 60;
-    const formatted = `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+    const formatted = hrs > 0
+      ? `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+      : `${mins}:${String(secs).padStart(2, '0')}`;
+
     return isNegative ? `-${formatted}` : formatted;
   };
 
@@ -296,7 +332,7 @@ export default function App() {
       window.navigator.vibrate(50); // Small haptic feedback
     }
     setServiceData(prev => {
-      const updatedShots = prev[activeService].shots.map(s => 
+      const updatedShots = prev[activeService].shots.map(s =>
         s.id === shotId ? { ...s, captured: !s.captured } : s
       );
       return { ...prev, [activeService]: { ...prev[activeService], shots: updatedShots } };
@@ -351,7 +387,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen pb-20 overflow-x-hidden font-sans selection:bg-blue-500/30 bg-[#0F0F0F] text-[#f3f4f6] transition-colors duration-500">
-      
+
       {/* Background Ambience */}
       <div className="fixed inset-0 z-[-1] bg-[#0F0F0F] pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600/5 blur-[120px]" />
@@ -361,7 +397,7 @@ export default function App() {
       {/* Header */}
       <header className="sticky top-0 z-50 glass-panel border-b border-[#2A2A2A] px-4 py-3">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          
+
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="bg-gradient-to-tr from-blue-600 to-blue-500 p-2.5 rounded-2xl shadow-lg shadow-blue-600/20">
               <Camera className="w-6 h-6 text-white" strokeWidth={2.5} />
@@ -373,16 +409,15 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-            
+
             {/* Service Toggle */}
             <div className="bg-[#1A1A1A] border border-[#2A2A2A] p-1 rounded-xl flex items-center">
               {['9am', '11am'].map(srv => (
-                <button 
+                <button
                   key={srv}
                   onClick={() => setActiveService(srv)}
-                  className={`relative px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
-                    activeService === srv ? 'text-white' : 'text-[#A0A0A0] hover:text-white'
-                  }`}
+                  className={`relative px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 ${activeService === srv ? 'text-white' : 'text-[#A0A0A0] hover:text-white'
+                    }`}
                 >
                   {activeService === srv && (
                     <motion.div layoutId="service-bubble" className="absolute inset-0 bg-blue-600 rounded-lg shadow-md shadow-blue-500/20" style={{ zIndex: -1 }} />
@@ -393,10 +428,39 @@ export default function App() {
             </div>
 
             {/* Run-Time Clock */}
-            <div className="flex items-center gap-2 border px-3 py-1.5 rounded-xl text-sm font-mono font-bold transition-all duration-300 bg-[#1A1A1A] border-[#2A2A2A] text-white">
-              <Clock className="w-3.5 h-3.5 text-blue-500" />
-              <span className="w-[4.5rem] text-center">{formatTime(getElapsedSeconds())}</span>
-            </div>
+            {(() => {
+              const seconds = getElapsedSeconds();
+              const state = getClockState();
+              return (
+                <div className={`flex items-center gap-2.5 border px-3.5 py-1.5 rounded-xl text-sm font-mono font-bold transition-all duration-500 ${state === 'countdown'
+                    ? 'bg-amber-950/30 border-amber-500/30 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                    : state === 'live'
+                      ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                      : 'bg-[#1A1A1A] border-[#2A2A2A] text-zinc-400'
+                  }`}>
+                  <Clock className={`w-4 h-4 transition-colors duration-500 ${state === 'countdown'
+                      ? 'text-amber-400 animate-pulse'
+                      : state === 'live'
+                        ? 'text-emerald-400 animate-pulse'
+                        : 'text-zinc-500'
+                    }`} />
+                  <span className={`text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded border font-sans select-none ${state === 'countdown'
+                      ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                      : state === 'live'
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                        : 'bg-zinc-800/40 border-zinc-700/20 text-zinc-400'
+                    }`}>
+                    {state === 'countdown' && 'Countdown'}
+                    {state === 'live' && 'Live'}
+                    {state === 'completed' && 'Done'}
+                    {state === 'waiting' && 'Standby'}
+                  </span>
+                  <span className="w-[4.2rem] text-center font-black tabular-nums transition-colors duration-500">
+                    {formatTime(seconds)}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
         </div>
@@ -405,8 +469,8 @@ export default function App() {
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
 
         {/* Dashboard Widgets */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-5 rounded-3xl relative overflow-hidden group">
             <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-600/10 rounded-full blur-xl group-hover:bg-blue-600/20 transition-all" />
             <div className="space-y-2 relative z-10">
@@ -419,15 +483,118 @@ export default function App() {
                 <span className="text-sm font-medium text-[#A0A0A0]">({capturedShots} / {totalShots})</span>
               </div>
               <div className="w-full bg-[#2A2A2A] h-2.5 rounded-full overflow-hidden mt-3 shadow-inner">
-                <motion.div 
+                <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${completionPercent}%` }}
                   transition={{ duration: 0.8, ease: "easeOut" }}
-                  className="h-full bg-gradient-to-r from-blue-600 to-blue-500 rounded-full" 
+                  className="h-full bg-gradient-to-r from-blue-600 to-blue-500 rounded-full"
                 />
               </div>
             </div>
           </motion.div>
+
+          {/* Service Timing Dashboard Widget */}
+          {(() => {
+            const seconds = getElapsedSeconds();
+            const state = getClockState();
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className={`border p-5 rounded-3xl shadow-xl flex flex-col justify-between relative overflow-hidden group transition-all duration-500 ${state === 'countdown'
+                    ? 'bg-gradient-to-br from-amber-950/40 to-[#1A1A1A] border-amber-500/20 shadow-amber-950/10'
+                    : state === 'live'
+                      ? 'bg-gradient-to-br from-emerald-950/40 to-[#1A1A1A] border-emerald-500/20 shadow-emerald-950/10'
+                      : 'bg-gradient-to-br from-zinc-900/40 to-[#1A1A1A] border-zinc-800'
+                  }`}
+              >
+                <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl transition-all duration-500 opacity-60 group-hover:opacity-100 ${state === 'countdown'
+                    ? 'bg-amber-500/10'
+                    : state === 'live'
+                      ? 'bg-emerald-500/10'
+                      : 'bg-zinc-500/5'
+                  }`} />
+
+                <div className="space-y-3 relative z-10">
+                  <div className="flex items-center justify-between">
+                    <div className={`flex items-center gap-2 ${state === 'countdown'
+                        ? 'text-amber-400'
+                        : state === 'live'
+                          ? 'text-emerald-400'
+                          : 'text-zinc-400'
+                      }`}>
+                      <Clock className={`w-4 h-4 ${state === 'countdown' || state === 'live' ? 'animate-pulse' : ''
+                        }`} />
+                      <span className="text-xs font-bold tracking-widest uppercase">Service Clock</span>
+                    </div>
+
+                    <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded border ${state === 'countdown'
+                        ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                        : state === 'live'
+                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 animate-pulse'
+                          : 'bg-zinc-800/50 border-zinc-700/30 text-zinc-400'
+                      }`}>
+                      {state === 'countdown' && 'Countdown'}
+                      {state === 'live' && 'Live'}
+                      {state === 'completed' && 'Done'}
+                      {state === 'waiting' && 'Standby'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-baseline gap-3">
+                    <span className={`text-4xl font-black font-mono tracking-wide font-outfit ${state === 'countdown'
+                        ? 'text-amber-400'
+                        : state === 'live'
+                          ? 'text-emerald-400'
+                          : 'text-zinc-300'
+                      }`}>
+                      {formatTime(seconds)}
+                    </span>
+                    <span className="text-xs font-semibold text-[#A0A0A0]">
+                      {activeService.toUpperCase()}
+                    </span>
+                  </div>
+
+                  {/* Progress bar of service or countdown */}
+                  <div className="w-full bg-[#2A2A2A] h-2 rounded-full overflow-hidden mt-2 shadow-inner">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{
+                        width: (() => {
+                          if (state === 'live') {
+                            // Service is 3.5 hours = 12600 seconds
+                            const pct = (seconds / 12600) * 100;
+                            return `${Math.min(100, Math.max(0, pct))}%`;
+                          } else if (state === 'countdown') {
+                            // Countdown is 20 minutes = 1200 seconds
+                            // seconds is between -1200 and 0
+                            const pct = ((1200 + seconds) / 1200) * 100;
+                            return `${Math.min(100, Math.max(0, pct))}%`;
+                          } else if (state === 'completed') {
+                            return '100%';
+                          }
+                          return '0%';
+                        })()
+                      }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                      className={`h-full rounded-full ${state === 'countdown'
+                          ? 'bg-gradient-to-r from-amber-600 to-amber-500'
+                          : state === 'live'
+                            ? 'bg-gradient-to-r from-emerald-600 to-emerald-500'
+                            : 'bg-zinc-600'
+                        }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between text-[10px] text-zinc-500 font-bold uppercase tracking-wider relative z-10">
+                  <span>{activeService === '9am' ? '9:00 AM' : '11:00 AM'} Start</span>
+                  <span>12:30 PM End</span>
+                </div>
+              </motion.div>
+            );
+          })()}
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-gradient-to-br from-blue-950/40 to-[#1A1A1A] border border-blue-500/15 p-5 rounded-3xl shadow-xl flex flex-col justify-between relative overflow-hidden">
             <div className="space-y-2 relative z-10">
@@ -439,7 +606,7 @@ export default function App() {
                 Gather <strong className="text-white">JOY</strong> & <strong className="text-white">LIFE</strong>. Zoom in on real emotional expressions, smiles, clapping, and raised hands.
               </p>
             </div>
-            <button 
+            <button
               onClick={resetServiceData}
               className="mt-4 flex items-center gap-1.5 w-fit text-[10px] font-bold text-[#A0A0A0] hover:text-rose-400 transition-colors uppercase tracking-wider relative z-10"
             >
@@ -461,16 +628,14 @@ export default function App() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`relative pb-3 pt-2 px-5 text-sm font-semibold transition-all duration-300 flex items-center gap-2 whitespace-nowrap ${
-                activeTab === tab.id ? 'text-white' : 'text-[#A0A0A0] hover:text-white'
-              }`}
+              className={`relative pb-3 pt-2 px-5 text-sm font-semibold transition-all duration-300 flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id ? 'text-white' : 'text-[#A0A0A0] hover:text-white'
+                }`}
             >
               {tab.icon}
               {tab.label}
               {tab.count !== null && (
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-colors ${
-                  activeTab === tab.id ? 'bg-blue-600/20 text-blue-400' : 'bg-[#2A2A2A] text-[#A0A0A0]'
-                }`}>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-colors ${activeTab === tab.id ? 'bg-blue-600/20 text-blue-400' : 'bg-[#2A2A2A] text-[#A0A0A0]'
+                  }`}>
                   {tab.count}
                 </span>
               )}
@@ -483,10 +648,10 @@ export default function App() {
 
         {/* Content Panels */}
         <AnimatePresence mode="wait">
-          
+
           {/* CHECKLIST */}
           {activeTab === 'checklist' && (
-            <motion.div 
+            <motion.div
               key="checklist"
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
@@ -508,9 +673,9 @@ export default function App() {
 
                 return (
                   <div key={category} className="glass-card rounded-3xl overflow-hidden shadow-lg border border-[#2A2A2A]">
-                    
+
                     <div className="bg-white/[0.01] px-6 py-4 border-b border-[#2A2A2A] flex justify-between items-center backdrop-blur-md">
-                       <h3 className="font-extrabold text-sm tracking-wider uppercase text-white font-outfit flex items-center gap-2.5">
+                      <h3 className="font-extrabold text-sm tracking-wider uppercase text-white font-outfit flex items-center gap-2.5">
                         <span className="w-1.5 h-4 bg-gradient-to-b from-blue-600 to-blue-500 rounded-full" />
                         {category}
                       </h3>
@@ -521,12 +686,11 @@ export default function App() {
 
                     <div className="divide-y divide-[#2A2A2A]">
                       {categoryShots.map(shot => (
-                        <div 
-                          key={shot.id} 
+                        <div
+                          key={shot.id}
                           onClick={() => toggleShot(shot.id)}
-                          className={`group p-5 flex items-start justify-between gap-4 cursor-pointer transition-all duration-300 hover:bg-white/[0.01] ${
-                            shot.captured ? 'bg-black/20' : ''
-                          }`}
+                          className={`group p-5 flex items-start justify-between gap-4 cursor-pointer transition-all duration-300 hover:bg-white/[0.01] ${shot.captured ? 'bg-black/20' : ''
+                            }`}
                         >
                           <div className="flex items-start gap-4 max-w-[85%]">
                             <button className={`mt-0.5 shrink-0 transition-transform duration-300 active:scale-90 ${shot.captured ? 'text-blue-400' : 'text-[#A0A0A0] group-hover:text-zinc-300'}`}>
@@ -537,18 +701,17 @@ export default function App() {
                               <p className={`text-sm leading-relaxed transition-colors duration-300 ${shot.captured ? 'text-zinc-500' : 'text-zinc-200 font-medium group-hover:text-white'}`}>
                                 {shot.label}
                               </p>
-                              
+
                               <div className="flex flex-wrap items-center gap-2 pt-1">
                                 {shot.isCoLab && (
                                   <span className="bg-amber-400/10 text-amber-300 border border-amber-400/20 text-[9px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider shadow-[0_0_10px_rgba(251,191,36,0.1)]">
                                     ⭐ Co-Lab
                                   </span>
                                 )}
-                                <span className={`flex items-center gap-1.5 text-[9px] font-bold px-2 py-0.5 rounded border ${
-                                  shot.device.includes('Phone') 
-                                    ? 'bg-blue-900/10 text-blue-300 border-blue-500/15' 
+                                <span className={`flex items-center gap-1.5 text-[9px] font-bold px-2 py-0.5 rounded border ${shot.device.includes('Phone')
+                                    ? 'bg-blue-900/10 text-blue-300 border-blue-500/15'
                                     : 'bg-blue-950/40 text-blue-400 border-blue-500/20'
-                                }`}>
+                                  }`}>
                                   {shot.device.includes('Phone') ? <Smartphone className="w-2.5 h-2.5" /> : <Camera className="w-2.5 h-2.5" />}
                                   {shot.device}
                                 </span>
@@ -568,14 +731,14 @@ export default function App() {
                   Add Personal Checkpoint
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={newShotText}
                     onChange={(e) => setNewShotText(e.target.value)}
                     placeholder="e.g. Catch the 11AM walkup response..."
                     className="bg-[#0F0F0F] border border-[#2A2A2A] text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all md:col-span-2 placeholder:text-zinc-600"
                   />
-                  <select 
+                  <select
                     value={newShotCategory}
                     onChange={(e) => setNewShotCategory(e.target.value)}
                     className="bg-[#0F0F0F] border border-[#2A2A2A] text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none"
@@ -583,7 +746,7 @@ export default function App() {
                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-                <button 
+                <button
                   type="submit"
                   className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold text-sm py-3.5 rounded-xl uppercase tracking-wider transition-all duration-300 shadow-lg shadow-blue-500/25 active:scale-[0.98]"
                 >
@@ -595,7 +758,7 @@ export default function App() {
 
           {/* SANDBOX */}
           {activeTab === 'sandbox' && (
-            <motion.div 
+            <motion.div
               key="sandbox"
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               className="grid grid-cols-1 lg:grid-cols-12 gap-8"
@@ -675,11 +838,10 @@ export default function App() {
                   <button
                     onClick={generateReferenceImage}
                     disabled={sandboxLoading}
-                    className={`w-full flex items-center justify-center gap-2 font-bold text-sm py-4 rounded-xl uppercase tracking-wider transition-all duration-300 shadow-lg ${
-                      sandboxLoading
+                    className={`w-full flex items-center justify-center gap-2 font-bold text-sm py-4 rounded-xl uppercase tracking-wider transition-all duration-300 shadow-lg ${sandboxLoading
                         ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/50'
                         : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-blue-500/25 active:scale-[0.98]'
-                    }`}
+                      }`}
                   >
                     <Sparkles className="w-4 h-4" />
                     {sandboxLoading ? 'Rendering preview...' : 'Generate Reference Image'}
@@ -690,7 +852,7 @@ export default function App() {
               {/* Viewport Column */}
               <div className="lg:col-span-7 space-y-6">
                 <div className="glass-card rounded-3xl border border-[#2A2A2A] overflow-hidden flex flex-col relative">
-                  
+
                   {/* Header info */}
                   <div className="px-6 py-4 border-b border-[#2A2A2A] flex justify-between items-center bg-white/[0.01]">
                     <h4 className="font-extrabold text-sm tracking-wider uppercase text-white font-outfit flex items-center gap-2">
@@ -740,7 +902,7 @@ export default function App() {
                             <div className="absolute inset-0 rounded-full border-4 border-blue-500/20" />
                             <div className="absolute inset-0 rounded-full border-4 border-t-blue-500 animate-spin" />
                           </div>
-                          
+
                           <div className="space-y-1.5">
                             <p className="text-sm font-bold text-white tracking-wide">{sandboxLoadingMsg}</p>
                             <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest animate-pulse">Running Imagen Diffusion</p>
@@ -818,7 +980,7 @@ export default function App() {
 
               <div className="flex justify-between items-center text-xs mt-4">
                 <span className="text-zinc-500 flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Auto-saving locally</span>
-                <button 
+                <button
                   onClick={() => {
                     if (window.confirm('Clear all notes?')) handleNotesChange('');
                   }}
@@ -842,16 +1004,15 @@ export default function App() {
               key={toast.id}
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 20, opacity: 0 }}
-              className={`p-4 rounded-2xl shadow-xl flex items-start gap-3 pointer-events-auto border backdrop-blur-md ${
-                toast.type === 'success'
+              exit={{ opacity: 0, x: 20 }}
+              className={`p-4 rounded-2xl shadow-xl flex items-start gap-3 pointer-events-auto border backdrop-blur-md ${toast.type === 'success'
                   ? 'bg-emerald-950/80 border-emerald-500/20 text-emerald-300'
                   : toast.type === 'warning'
-                  ? 'bg-amber-950/80 border-amber-500/20 text-amber-300'
-                  : toast.type === 'error'
-                  ? 'bg-rose-950/80 border-rose-500/20 text-rose-300'
-                  : 'bg-zinc-950/80 border-zinc-500/20 text-zinc-300'
-              }`}
+                    ? 'bg-amber-950/80 border-amber-500/20 text-amber-300'
+                    : toast.type === 'error'
+                      ? 'bg-rose-950/80 border-rose-500/20 text-rose-300'
+                      : 'bg-zinc-950/80 border-zinc-500/20 text-zinc-300'
+                }`}
             >
               <div className="mt-0.5">
                 {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
@@ -862,7 +1023,7 @@ export default function App() {
               <div className="flex-1 text-xs font-semibold leading-relaxed">
                 {toast.message}
               </div>
-              <button 
+              <button
                 onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
                 className="text-[#A0A0A0] hover:text-white transition-colors"
               >
