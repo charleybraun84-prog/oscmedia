@@ -14,8 +14,10 @@ import {
   Play,
   Pause,
   RefreshCw,
-  Zap
+  Zap,
+  Sparkles
 } from 'lucide-react';
+import SermonAgentTab from './components/SermonAgentTab';
 
 const INITIAL_SHOTS = [
   // LOBBY & PRE-SERVICE
@@ -173,6 +175,38 @@ export default function App() {
     setServiceData(prev => ({ ...prev, [activeService]: { ...prev[activeService], notes: text } }));
   };
 
+  const handleSyncSermonClips = (clips) => {
+    setServiceData(prev => {
+      const existingShots = prev[activeService].shots;
+      
+      const newShots = clips.map(clip => {
+        const id = `sermon-clip-${clip.id}`;
+        
+        // If this clip is already added, don't duplicate it
+        if (existingShots.some(s => s.id === id)) {
+          return null;
+        }
+
+        return {
+          id: id,
+          category: 'Sermon Video Clips (AI)',
+          label: `[${clip.start}] ${clip.title} - Visuals: ${clip.visualTheme}`,
+          isCoLab: false,
+          device: 'My Phone & Cam (Video)',
+          captured: false
+        };
+      }).filter(Boolean);
+
+      return {
+        ...prev,
+        [activeService]: {
+          ...prev[activeService],
+          shots: [...existingShots, ...newShots]
+        }
+      };
+    });
+  };
+
   const resetServiceData = () => {
     if (window.confirm(`Are you sure you want to reset all progress for the ${activeService.toUpperCase()} service?`)) {
       setServiceData(prev => ({
@@ -189,7 +223,7 @@ export default function App() {
   const totalBaptisms = currentData.baptisms.length;
   const completedBaptisms = currentData.baptisms.filter(b => b.photo && b.video).length;
 
-  const categories = [...new Set(INITIAL_SHOTS.map(s => s.category))];
+  const categories = [...new Set(currentData.shots.map(s => s.category))];
 
   return (
     <div className="min-h-screen pb-20 overflow-x-hidden font-sans text-slate-100 selection:bg-cyan-500/30">
@@ -323,6 +357,7 @@ export default function App() {
         <div className="flex border-b border-white/5 overflow-x-auto no-scrollbar scroll-smooth">
           {[
             { id: 'checklist', label: 'Shot List', icon: <Camera className="w-4 h-4" />, count: `${capturedShots}/${totalShots}` },
+            { id: 'sermon', label: 'Sermon Agent', icon: <Sparkles className="w-4 h-4" />, count: null },
             { id: 'baptisms', label: 'Baptisms', icon: <Droplets className="w-4 h-4" />, count: `${completedBaptisms}/${totalBaptisms}` },
             { id: 'notes', label: 'Notepad', icon: <Edit3 className="w-4 h-4" />, count: currentData.notes ? 'Saved' : null }
           ].map(tab => (
@@ -460,6 +495,22 @@ export default function App() {
               </form>
             </motion.div>
           )}
+
+          {/* SERMON AGENT */}
+          {activeTab === 'sermon' && (
+            <motion.div
+              key="sermon"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <SermonAgentTab
+                activeService={activeService}
+                onSyncClips={handleSyncSermonClips}
+              />
+            </motion.div>
+          )}
+
 
           {/* BAPTISMS */}
           {activeTab === 'baptisms' && (
