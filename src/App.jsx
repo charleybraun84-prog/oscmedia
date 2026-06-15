@@ -11,20 +11,17 @@ import {
   X,
   RefreshCw,
   Zap,
-<<<<<<< HEAD
-  Sparkles
-} from 'lucide-react';
-import SermonAgentTab from './components/SermonAgentTab';
-=======
   Calendar,
   Sparkles,
   Sliders,
   AlertCircle,
   Copy,
-  Image
+  Image,
+  Droplets,
+  Video
 } from 'lucide-react';
+import SermonAgentTab from './components/SermonAgentTab';
 import MediaLensTracker from './MediaLensTracker.jsx';
->>>>>>> d85d0b6045b93ceb312ae347e44dfec880e32340
 
 const INITIAL_SHOTS = [
   // LOBBY & PRE-SERVICE
@@ -107,6 +104,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('checklist');
   const [newShotText, setNewShotText] = useState('');
   const [newShotCategory, setNewShotCategory] = useState('Lobby & Pre-Service');
+  const [newBaptismName, setNewBaptismName] = useState('');
 
   // Sandbox State
   const [sandboxSubject, setSandboxSubject] = useState('Worship Leader Close-up (Vocalist showing high emotion)');
@@ -368,7 +366,42 @@ export default function App() {
     setNewShotText('');
   };
 
+  const toggleBaptismMedia = (id, field) => {
+    if (window.navigator && window.navigator.vibrate) {
+      window.navigator.vibrate([30, 50, 30]);
+    }
+    setServiceData(prev => {
+      const updatedBaps = (prev[activeService].baptisms || []).map(b =>
+        b.id === id ? { ...b, [field]: !b[field] } : b
+      );
+      return { ...prev, [activeService]: { ...prev[activeService], baptisms: updatedBaps } };
+    });
+  };
 
+  const addBaptism = (e) => {
+    e.preventDefault();
+    const name = newBaptismName.trim() || `Candidate ${(currentData.baptisms || []).length + 1}`;
+    const newBap = { id: Date.now(), name, photo: false, video: false };
+
+    setServiceData(prev => ({
+      ...prev,
+      [activeService]: {
+        ...prev[activeService],
+        baptisms: [...(prev[activeService].baptisms || []), newBap]
+      }
+    }));
+    setNewBaptismName('');
+  };
+
+  const removeBaptism = (id) => {
+    setServiceData(prev => ({
+      ...prev,
+      [activeService]: {
+        ...prev[activeService],
+        baptisms: (prev[activeService].baptisms || []).filter(b => b.id !== id)
+      }
+    }));
+  };
 
   const handleNotesChange = (text) => {
     setServiceData(prev => ({ ...prev, [activeService]: { ...prev[activeService], notes: text } }));
@@ -419,7 +452,8 @@ export default function App() {
   const capturedShots = currentData.shots.filter(s => s.captured).length;
   const completionPercent = totalShots > 0 ? Math.round((capturedShots / totalShots) * 100) : 0;
 
-
+  const totalBaptisms = (currentData.baptisms || []).length;
+  const completedBaptisms = (currentData.baptisms || []).filter(b => b.photo && b.video).length;
 
   const categories = [...new Set(currentData.shots.map(s => s.category))];
 
@@ -659,13 +693,9 @@ export default function App() {
         <div className="flex border-b border-[#2A2A2A] overflow-x-auto no-scrollbar scroll-smooth">
           {[
             { id: 'checklist', label: 'Shot List', icon: <Camera className="w-4 h-4" />, count: `${capturedShots}/${totalShots}` },
-<<<<<<< HEAD
             { id: 'sermon', label: 'Sermon Agent', icon: <Sparkles className="w-4 h-4" />, count: null },
             { id: 'baptisms', label: 'Baptisms', icon: <Droplets className="w-4 h-4" />, count: `${completedBaptisms}/${totalBaptisms}` },
-=======
-            // { id: 'sandbox', label: 'Visual Sandbox', icon: <Sparkles className="w-4 h-4" />, count: null },
             { id: 'calendar', label: 'Calendar', icon: <Calendar className="w-4 h-4" />, count: null },
->>>>>>> d85d0b6045b93ceb312ae347e44dfec880e32340
             { id: 'notes', label: 'Notepad', icon: <Edit3 className="w-4 h-4" />, count: currentData.notes ? 'Saved' : null }
           ].map(tab => (
             <button
@@ -799,7 +829,6 @@ export default function App() {
             </motion.div>
           )}
 
-<<<<<<< HEAD
           {/* SERMON AGENT */}
           {activeTab === 'sermon' && (
             <motion.div
@@ -815,27 +844,118 @@ export default function App() {
             </motion.div>
           )}
 
-
           {/* BAPTISMS */}
           {activeTab === 'baptisms' && (
             <motion.div key="baptisms" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-              <div className="glass-card rounded-3xl overflow-hidden border border-white/5">
-                <div className="bg-white/5 px-6 py-5 border-b border-white/5 backdrop-blur-md">
+              <div className="glass-card rounded-3xl overflow-hidden border border-[#2A2A2A]">
+                <div className="bg-white/5 px-6 py-5 border-b border-[#2A2A2A] backdrop-blur-md">
                   <h3 className="font-bold text-sm text-white uppercase flex items-center gap-3">
                     <span className="relative flex h-3 w-3">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                     </span>
-                    Baptism Roster ({currentData.baptisms.length})
+                    Baptism Roster ({(currentData.baptisms || []).length})
                   </h3>
                 </div>
 
-                {currentData.baptisms.length === 0 ? (
-                  <div className="p-12 text-center text-slate-400">
-                    <Droplets className="w-12 h-12 mx-auto text-slate-600 mb-4" />
+                {(!currentData.baptisms || currentData.baptisms.length === 0) ? (
+                  <div className="p-12 text-center text-[#A0A0A0]">
+                    <Droplets className="w-12 h-12 mx-auto text-zinc-600 mb-4" />
                     <p className="text-sm font-medium text-white">No candidates listed for {activeService}.</p>
                     <p className="text-xs mt-2">Add names below to track capture state.</p>
-=======
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#2A2A2A]">
+                    <AnimatePresence>
+                      {(currentData.baptisms || []).map(bap => {
+                        const finished = bap.photo && bap.video;
+                        return (
+                          <motion.div 
+                            layout
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            key={bap.id} 
+                            className={`p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-5 transition-all duration-500 ${
+                              finished ? 'bg-emerald-500/5' : ''
+                            }`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${
+                                finished ? 'bg-emerald-500 text-slate-900 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-[#1A1A1A] text-[#A0A0A0]'
+                              }`}>
+                                {finished ? <CheckCircle2 className="w-5 h-5" /> : <Droplets className="w-4 h-4" />}
+                              </div>
+                              <div>
+                                <p className="font-bold text-base text-white font-outfit">{bap.name}</p>
+                                <span className={`text-[10px] uppercase tracking-wider font-bold ${finished ? 'text-emerald-400' : 'text-[#A0A0A0]'}`}>
+                                  {finished ? '⭐ Ready for Post-Process' : 'Pending Capture'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => toggleBaptismMedia(bap.id, 'photo')}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase transition-all duration-300 active:scale-95 ${
+                                  bap.photo 
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25' 
+                                    : 'bg-[#1A1A1A] border border-[#2A2A2A] text-zinc-400 hover:text-white hover:border-blue-500/50'
+                                }`}
+                              >
+                                <Camera className="w-4 h-4" /> Photo
+                              </button>
+
+                              <button
+                                onClick={() => toggleBaptismMedia(bap.id, 'video')}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase transition-all duration-300 active:scale-95 ${
+                                  bap.video 
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25' 
+                                    : 'bg-[#1A1A1A] border border-[#2A2A2A] text-zinc-400 hover:text-white hover:border-blue-500/50'
+                                }`}
+                              >
+                                <Video className="w-4 h-4" /> Video
+                              </button>
+
+                              <button 
+                                onClick={() => removeBaptism(bap.id)}
+                                className="p-2.5 ml-1 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </div>
+
+              <form onSubmit={addBaptism} className="glass-card p-6 rounded-3xl shadow-lg border border-[#2A2A2A]">
+                <h4 className="font-bold text-sm text-white mb-4 flex items-center gap-2">
+                  <span className="bg-white/10 p-1.5 rounded-lg"><Droplets className="w-4 h-4 text-emerald-400" /></span>
+                  Register Candidate
+                </h4>
+                <div className="flex gap-3">
+                  <input 
+                    type="text" 
+                    value={newBaptismName}
+                    onChange={(e) => setNewBaptismName(e.target.value)}
+                    placeholder="e.g. Dave Harrison..."
+                    className="bg-[#0F0F0F] border border-[#2A2A2A] text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 flex-1 transition-all placeholder:text-zinc-600"
+                  />
+                  <button 
+                    type="submit"
+                    className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-black text-sm px-6 rounded-xl uppercase tracking-wider transition-all shadow-lg shadow-blue-500/25 active:scale-95"
+                  >
+                    Add
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+
           {/* SANDBOX */}
           {activeTab === 'sandbox' && (
             <motion.div
@@ -851,7 +971,6 @@ export default function App() {
                       <Sliders className="w-5 h-5 text-blue-500" /> Composition Parameters
                     </h3>
                     <p className="text-xs text-[#A0A0A0] mt-1">Configure the physical environment, lens settings, and subject matter for the AI rendering.</p>
->>>>>>> d85d0b6045b93ceb312ae347e44dfec880e32340
                   </div>
 
                   {/* Subject Dropdown */}
